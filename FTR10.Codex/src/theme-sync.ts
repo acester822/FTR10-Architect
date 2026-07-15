@@ -873,7 +873,7 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
   } else {
     const raw = JSON.parse(fs.readFileSync(themeJsonPath, 'utf8')) as RawThemeJson;
     themeConfig = flattenConfig(raw);
-    migrateConfig();
+    migrateConfig();  // Forward-fills any missing vars from DEFAULT_VALUES
   }
 
   // Seed Base session cards from static presets (issue #4)
@@ -890,13 +890,14 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
     // Also clean other css files of double semicolons via robust updater
     updateAllCssFiles(themeConfig.values, ['--ftr10-bg-image-panels', '--ftr10-highlight']);
   } catch {}
-
+  
   // Register sidebar webview provider
   sidebarProvider = new ThemeSidebarProvider(context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('themeSync.sidebar', sidebarProvider)
   );
 
+  // Register commands
   const openPanelCmd = vscode.commands.registerCommand('themeSync.openPanel', () => {
     if (panel) {panel.reveal(vscode.ViewColumn.One);}
     else {createPanel(context);}
@@ -915,11 +916,6 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
     try {
       const raw = JSON.parse(fs.readFileSync(themeJsonPath, 'utf8')) as RawThemeJson;
       themeConfig = flattenConfig(raw);
-      // colors.css is canonical, so re-apply it over theme.json values
-      try {
-        const canonical = parseColorsCssFile();
-        if (Object.keys(canonical).length) {themeConfig.values = { ...themeConfig.values, ...canonical };}
-      } catch {}
       generateShim(profilePath, themeConfig);
       updateWebviewUI();
       sidebarProvider?.syncActivePreset();
@@ -928,38 +924,20 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
     }
   });
 
-  // Canonical watcher: colors.css is source of truth
-  const colorsCssPath = path.join(profilePath, 'css.files', 'colors.css');
-  let colorsCssWatcher: any = null;
-  try {
-    colorsCssWatcher = chokidar.watch(colorsCssPath, { ignoreInitial: true });
-    let _cssDebounce: any = null;
-    colorsCssWatcher.on('change', () => {
-      clearTimeout(_cssDebounce);
-      _cssDebounce = setTimeout(() => {
-        try {
-          syncAllFromColorsCss();
-          sidebarProvider?.syncActivePreset();
-        } catch (e) { console.error('colors.css watcher failed', e); }
-      }, 150);
-    });
-    context.subscriptions.push({ dispose: () => { try { colorsCssWatcher?.close(); } catch {} } });
-  } catch(e){ console.error('Failed to watch colors.css', e); }
-
   context.subscriptions.push({ dispose: () => watcher?.close() });
-  // On activation, ensure colors.css is canonical: if it exists, it wins over theme.json
-  try {
-    const existing = parseColorsCssFile();
-    if (Object.keys(existing).length > 10) {
-      themeConfig.values = { ...themeConfig.values, ...existing };
-    } else {
-      regenerateColorsCss(themeConfig.values);
-    }
-  } catch { try { regenerateColorsCss(themeConfig.values); } catch {} }
+
+  // Single source of truth: theme.json -> all generated artifacts.
+  // Regenerate colors.css from themeConfig (repair corruption if needed),
+  // then derive vars.json / shim / tokens from themeConfig. colors.css is a
+  // generated output and is NOT fed back upstream.
+  try { regenerateColorsCss(themeConfig.values); } catch {}
   generateShim(profilePath, themeConfig);
   writeVarsJson(profilePath, themeConfig);
-  // Full sync from canonical to ensure vars.json, terminal, tokens, etc. reflect colors.css
-  try { syncAllFromColorsCss(); } catch {}
+  writeTerminalColors(profilePath, themeConfig.values);
+  try { writeThemeTokenColors(themeConfig.values); } catch (e) { console.error('writeThemeTokenColors failed:', e); }
+  try { writeTokenColors(themeConfig.values); } catch (e) { console.error('writeTokenColors failed:', e); }
+  pushVarsLive(themeConfig.values);
+  updateWebviewUI();
 }
 
 export function deactivateThemeSync(): void {
@@ -1630,7 +1608,6 @@ function handleMessage(msg: any): void {
 
 function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string[] }): void {
   if (_togglingTheme) {return;}
-  const isFast = !!opts?.fast;
   // Sanitize
   const values: Record<string, string> = {};
   for (const [k, v] of Object.entries(themeConfig.values)) {
@@ -1649,65 +1626,40 @@ function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string[] }): 
     values[k] = val;
   }
   themeConfig.values = values;
-  // Canonical: colors.css is source of truth -> write it first
+
+  // Single source of truth: theme.json (themeConfig) -> all generated artifacts.
+  // colors.css is a generated output, NOT fed back upstream.
   try { regenerateColorsCss(values); } catch(e){ console.error('regenerateColorsCss failed', e); }
-  // Fast path: just sync derived files from canonical
-  if (isFast) {
-    try {
-      // update other css files that contain changed keys (main.css etc) but keep colors.css canonical
-      const cssDir = path.join(profilePath, 'css.files');
-      if (fs.existsSync(cssDir) && opts?.changedKeys) {
-        // still update auxiliary css files via updateAllCssFiles logic but without overwriting colors.css again
-        // we already wrote colors.css, so only update others
-        let files: string[] = [];
-        try { files = fs.readdirSync(cssDir).filter(f=>f.endsWith('.css') && f!=='colors.css'); } catch {}
-        for (const file of files) {
-          const fp = path.join(cssDir, file);
-          try {
-            let css = fs.readFileSync(fp,'utf8');
-            let newCss = css;
-            for (const key of opts.changedKeys) {
-              if (!newCss.includes(key)) {continue;}
-              let v = values[key];
-              if ((key === '--ftr10-bg-image' || key === '--ftr10-bg-image-panels') && typeof v === 'string') {
-                const m = v.match(/url\(["']?backgrounds\/([^"')]+)["']?\)/i);
-                if (m) {v = 'url("../backgrounds/' + m[1] + '")';}
-              }
-              newCss = replaceCssVarRobust(newCss, key, v);
-            }
-            if (newCss !== css) {fs.writeFileSync(fp, newCss);}
-          } catch {}
-        }
-      }
-      writeVarsJson(profilePath, { ...themeConfig, values });
-      generateShim(profilePath, { ...themeConfig, values });
-      pushVarsLive(values);
-      updateWebviewUI();
-      // Sync vars panel after palette finalize (delayed to avoid breaking wheel during drag)
-      try { setTimeout(() => { try { if (CodexPanel) {CodexPanel.webview.postMessage({ command: 'syncVars', values });} } catch {} }, 150); } catch {}
-      // keep theme.json in sync - use in-memory config (preserves sessions)
-      try {
-        const themeJsonPath = path.join(profilePath, 'theme.json');
-        fs.writeFileSync(themeJsonPath, JSON.stringify({
-          ftr10Variables: { sections: themeConfig.sections, values },
-          cssImports: themeConfig.cssImports,
-          customCss: themeConfig.customCss,
-          activePreset: themeConfig.activePreset,
-          presetCustomizations: themeConfig.presetCustomizations,
-          presetBackgroundMode: themeConfig.presetBackgroundMode,
-          architectSessions: themeConfig.architectSessions,
-          lastModified: Date.now()
-        }, null, 2));
-      } catch {}
-      return;
-    } catch(e){ console.error('fast persist failed', e); }
-  }
-  // Full sync from canonical colors.css
-  try { syncAllFromColorsCss(); } catch(e){ console.error('syncAllFromColorsCss failed', e); }
-  // Also ensure auxiliary css files updated for changed keys
   if (opts?.changedKeys) {
-    try { writeColorsCss(values, opts.changedKeys); } catch {}
+    try { updateAllCssFiles(values, opts.changedKeys); } catch {}
+  } else {
+    try { updateAllCssFiles(values); } catch {}
   }
+  try { writeVarsJson(profilePath, { ...themeConfig, values }); } catch(e){ console.error('writeVarsJson failed', e); }
+  try { generateShim(profilePath, { ...themeConfig, values }); } catch(e){ console.error('generateShim failed', e); }
+  try { writeTerminalColors(profilePath, values); } catch {}
+  try { writeThemeTokenColors(values); } catch(e){ console.error('writeThemeTokenColors failed', e); }
+  try { writeTokenColors(values); } catch(e){ console.error('writeTokenColors failed', e); }
+  try { pushVarsLive(values); } catch {}
+  try { updateWebviewUI(); } catch {}
+  // Sync vars panel after palette finalize (delayed to avoid breaking wheel during drag)
+  if (opts?.fast) {
+    try { setTimeout(() => { try { if (CodexPanel) {CodexPanel.webview.postMessage({ command: 'syncVars', values });} } catch {} }, 150); } catch {}
+  }
+  // Persist theme.json — preserves sessions, sections, preset customizations
+  try {
+    const themeJsonPath = path.join(profilePath, 'theme.json');
+    fs.writeFileSync(themeJsonPath, JSON.stringify({
+      ftr10Variables: { sections: themeConfig.sections, values },
+      cssImports: themeConfig.cssImports,
+      customCss: themeConfig.customCss,
+      activePreset: themeConfig.activePreset,
+      presetCustomizations: themeConfig.presetCustomizations,
+      presetBackgroundMode: themeConfig.presetBackgroundMode,
+      architectSessions: themeConfig.architectSessions,
+      lastModified: Date.now()
+    }, null, 2));
+  } catch(e){ console.error('persist theme.json failed', e); }
 }
 
 function pushVarsLive(values: Record<string, string>): void {
@@ -2638,6 +2590,30 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
     }
   }
 
+  // Fallback: push architectConfig proactively 350ms after creation.
+  // The webview JS does postMessage({command:'getConfig'}) on load, but if that message
+  // is lost (retainContextWhenHidden, extension host restart, timing), the panel would
+  // stay empty with "Load config to edit". This ensures it always gets config.
+  setTimeout(() => {
+    try {
+      if (!CodexPanel) {return;}
+      let bgImages: { name: string; dataUri: string }[] = [];
+      try {
+        const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+        if (fs.existsSync(bgDir)) {
+          bgImages = fs.readdirSync(bgDir)
+            .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, 20)
+            .map(f => ({ name: f, dataUri: '' }));
+        }
+      } catch {}
+      const safeConfig = sanitizeConfigForWebview(themeConfig);
+      const safeVals = sanitizeForWebview(themeConfig.values);
+      CodexPanel.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: safeVals, bgImages });
+    } catch {}
+  }, 350);
+
   CodexPanel.webview.onDidReceiveMessage((msg: any) => {
     if (msg.command === 'CodexUpdate' && Array.isArray(msg.colors)) {
       sidebarProvider?.pushCodexColors(msg.colors);
@@ -2707,28 +2683,22 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
           bgImages = fs.readdirSync(bgDir)
             .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
             .sort((a, b) => a.localeCompare(b))
-            .map(f => ({ name: f, dataUri: '' })); // names only, no base64 to keep message small
+            .slice(0, 20)
+            .map(f => ({ name: f, dataUri: '' })); // names only, no base64 to keep message small (prev bug: 180MB+ dropped message)
         }
       } catch {}
-      let canonicalVals: Record<string,string> = {};
-      try { canonicalVals = parseColorsCssFile(); } catch {}
-      const mergedVals = { ...themeConfig.values, ...canonicalVals };
-      if (Object.keys(canonicalVals).length) {themeConfig.values = mergedVals;}
-      // Strip oversized/data-URI blobs so the message stays under VS Code's ~1MB cap
+      // Single source of truth: theme.json is canonical. Do NOT parse colors.css here.
+      // colors.css is a generated output and must not overwrite themeConfig.values.
       const safeConfig = sanitizeConfigForWebview(themeConfig);
-      CodexPanel?.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: sanitizeForWebview(mergedVals), bgImages });
+      const safeVals = sanitizeForWebview(themeConfig.values);
+      CodexPanel?.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: safeVals, bgImages });
     }
 
     if (msg.command === 'liveUpdate' && msg.values) {
       const changedKeys = Object.keys(msg.values);
-      // Canonical: update colors.css, then sync
-      try {
-        updateColorsCssWithValues(msg.values as Record<string,string>);
-      } catch(e){ console.error('liveUpdate canonical failed', e); 
-        // fallback
-        themeConfig.values = { ...themeConfig.values, ...msg.values };
-        persistThemeConfig({ fast: true, changedKeys });
-      }
+      // theme.json is canonical — merge directly, no colors.css feedback loop
+      themeConfig.values = { ...themeConfig.values, ...msg.values };
+      try { persistThemeConfig({ fast: true, changedKeys }); } catch(e){ console.error('liveUpdate persist failed', e); }
     }
 
     if (msg.command === 'saveSession' && Array.isArray(msg.colors) && msg.colors.length >= 6) {
@@ -4872,10 +4842,15 @@ window.addEventListener('message', (e) => {
     if (msg.config) {
       varsState.sections = msg.config.sections || [];
     }
-    // Only overwrite values on initial load (no values yet); skip if user has live in-flight edits
-    if (!Object.keys(varsState.values).length) {
-      varsState.values = msg.values || (msg.config && msg.config.values) || varsState.values;
+    // Merge incoming values. Previously only loaded if values empty — that skipped updates
+    // when ANY key (e.g. bgEffect) was already set, leaving Fonts/Opacity stuck on
+    // "Load config to edit". Now always merge, incoming wins, so palette generator loads.
+    if (msg.values && Object.keys(msg.values).length) {
+      varsState.values = { ...varsState.values, ...msg.values };
+    } else if (msg.config && msg.config.values && !Object.keys(varsState.values).length) {
+      varsState.values = msg.config.values;
     }
+    // Also merge sections fallback: if config.sections missing but simpleGroups present, ensure sections
     if (msg.simpleGroups) varsState.simpleGroups = msg.simpleGroups;
     if (msg.bgImages) __bgImages = msg.bgImages;
     if (msg.activePreset !== undefined) activePresetId = msg.activePreset || null;
