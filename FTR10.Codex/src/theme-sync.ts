@@ -359,7 +359,12 @@ export function deriveCodexPreset(session: ArchitectSession): ThemePreset {
       // ── Tier 1: Backgrounds ───────────────────────────────────
       '--ftr10-bg-effect': session.bgEffect || 'nebula',
       '--ftr10-thpace-enabled': session.thpaceEnabled || 'true',
-      '--ftr10-bg': '#00000000',
+      // NOTE: Do NOT set '--ftr10-bg' here. getDefaultBgMode() treats the mere
+      // presence of '--ftr10-bg' in preset.overrides as a signal that the preset
+      // wants 'solid' background mode. Architect sessions are effects-mode by
+      // default (transparent bg + Thpace), so setting this key — even to the
+      // transparent effects value — incorrectly forced every derived preset into
+      // 'solid' mode, killing the ambient background/Thpace effects on Apply.
       '--ftr10-bg-editor': '#020408ff',
       '--ftr10-bg-ambient': bgAmbient,
       // ── Tier 1: Text ──────────────────────────────────────────
