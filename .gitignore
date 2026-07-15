@@ -44,10 +44,16 @@ Thumbs.db
 .cache/
 .tmp/
 
-# --- Theme state (uncomment if you don't want to track sessions) ---
-# theme.json is the source of truth (architect sessions + vars) – large & changes often
-# If you want a clean git history, ignore it; if you want to backup sessions, keep it tracked
-# theme.json
+# --- Theme state ---
+# theme.json is committed as the "of record" factory default (so the repo keeps a
+# baseline). To stop LOCAL edits / custom architect sessions from syncing, the real
+# mechanism is a local index flag, NOT .gitignore (gitignore does NOT apply to
+# already-tracked files):
+#     git update-index --skip-worktree theme.json
+# .gitignore is intentionally NOT listing it, because a plain `theme.json` ignore
+# line would let a future `git add -A` silently drop the committed file from the
+# repo if skip-worktree is ever cleared. Keep theme.json tracked; skip-worktree
+# handles the "don't sync my local changes" part locally.
 
 # --- Optional: ignore fonts if they are large binaries you manage elsewhere ---
 # fonts/
