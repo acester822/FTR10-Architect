@@ -1,0 +1,238 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { interpretJS } from '../utility';
+import {
+  FileSystemApi,
+  NotebookConfig,
+  ParserConfig,
+  getDefaultKatexConfig,
+  getDefaultMathjaxConfig,
+  getDefaultMermaidConfig,
+  getDefaultNotebookConfig,
+  getDefaultParserConfig,
+} from './types';
+
+/**
+ * Load the configs from the given directory path.
+ * If the directory does not exist and `createDirectoryIfNotExists` is `true`, create it and return the default configs.
+ */
+export async function loadConfigsInDirectory(
+  directoryPath: string,
+  fileSystem: FileSystemApi,
+  createDirectoryIfNotExists: boolean = false,
+): Promise<Partial<NotebookConfig>> {
+  const defaultConfig = getDefaultNotebookConfig();
+  let loadedConfig: Partial<NotebookConfig> = {
+    globalCss: defaultConfig.globalCss,
+    includeInHeader: defaultConfig.includeInHeader,
+    mermaidConfig: defaultConfig.mermaidConfig,
+    mathjaxConfig: defaultConfig.mathjaxConfig,
+    katexConfig: defaultConfig.katexConfig,
+    parserConfig: defaultConfig.parserConfig,
+  };
+
+  if (createDirectoryIfNotExists) {
+    await fileSystem.mkdir(directoryPath);
+  }
+
+  if (await fileSystem.exists(directoryPath)) {
+    loadedConfig.globalCss = await getGlobalStyles(directoryPath, fileSystem);
+    loadedConfig.parserConfig = await getParserConfig(
+      directoryPath,
+      fileSystem,
+    );
+    loadedConfig.includeInHeader = await getHeaderIncludes(
+      directoryPath,
+      fileSystem,
+    );
+    loadedConfig = {
+      ...loadedConfig,
+      ...(await getConfigs(directoryPath, fileSystem)),
+    };
+  }
+  return loadedConfig;
+}
+
+async function getGlobalStyles(configPath: string, fs: FileSystemApi) {
+  const colorsCssPath = path.join(configPath, 'css.files', 'colors.css');
+  try {
+    return (await fs.readFile(colorsCssPath) as string);
+  } catch (_) {
+    return '';
+  }
+}
+
+async function getHeaderIncludes(configPath: string, fs: FileSystemApi) {
+  const headerIncludesPath = path.join(configPath, './head.html');
+  let fileContent: string;
+  try {
+    fileContent = await fs.readFile(headerIncludesPath);
+  } catch (e) {
+    // create head.html file
+    fileContent = `<!-- The content below will be included at the end of the <head> element. -->
+<!-- Add custom <meta>, <link>, or <script> tags here if needed. -->
+`;
+    await fs.writeFile(headerIncludesPath, fileContent);
+  }
+  return fileContent;
+}
+
+async function getConfigs(
+  configPath: string,
+  fs: FileSystemApi,
+): Promise<Partial<NotebookConfig>> {
+  const configScriptPath = path.join(configPath, './config.js');
+  const setupDefaultConfigScript = async () => {
+    const defaultKatexConfig = getDefaultKatexConfig();
+    const defaultMathjaxConfig = getDefaultMathjaxConfig();
+    const defaultMermaidConfig = getDefaultMermaidConfig();
+    await fs.writeFile(
+      configScriptPath,
+      `({
+  katexConfig: ${JSON.stringify(defaultKatexConfig, null, 2)},
+  
+  mathjaxConfig: ${JSON.stringify(defaultMathjaxConfig, null, 2)},
+  
+  mermaidConfig: ${JSON.stringify(defaultMermaidConfig, null, 2)},
+})`,
+    );
+    return {
+      katexConfig: defaultKatexConfig,
+      mathjaxConfig: defaultMathjaxConfig,
+      mermaidConfig: defaultMermaidConfig,
+    };
+  };
+
+  if (await fs.exists(configScriptPath)) {
+    try {
+      // HACK: Dyamic import here doesn't work for the VSCode packaged extension.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      /*
+      const result = isVSCodeWebExtension()
+        ? await import(configScriptPath + `?version=${Date.now()}`)
+        : (() => {
+            delete require.cache[require.resolve(configScriptPath)];
+            return require(configScriptPath);
+          })();
+      */
+      // NOTE: Never mind, the above code doesn't work in VSCode Web extension
+
+      const script = await fs.readFile(configScriptPath);
+      const result = interpretJS(script);
+      if (Object.keys(result ?? {}).length === 0) {
+        return await setupDefaultConfigScript();
+      }
+      return result;
+    } catch (e) {
+      console.error(e);
+      return {};
+    }
+  } else {
+    return setupDefaultConfigScript();
+  }
+}
+
+/**
+ * Wrap user-provided parser hooks so they are called with a null-prototype
+ * `this`, preventing prototype-chain escapes (e.g. `this.constructor.constructor`
+ * reaching the host Function/process).
+ */
+function sanitizeParserConfig(
+  defaultParserConfig: ParserConfig,
+  result: Record<string, unknown> | undefined,
+): ParserConfig {
+  const safeThis = Object.create(null);
+  return {
+    onWillParseMarkdown:
+      typeof result?.onWillParseMarkdown === 'function'
+        ? (md: string) =>
+            (
+              result.onWillParseMarkdown as ParserConfig['onWillParseMarkdown']
+            ).call(safeThis, md)
+        : defaultParserConfig.onWillParseMarkdown,
+    onDidParseMarkdown:
+      typeof result?.onDidParseMarkdown === 'function'
+        ? (html: string) =>
+            (
+              result.onDidParseMarkdown as ParserConfig['onDidParseMarkdown']
+            ).call(safeThis, html)
+        : defaultParserConfig.onDidParseMarkdown,
+  };
+}
+
+async function getParserConfig(
+  configPath: string,
+  fs: FileSystemApi,
+): Promise<ParserConfig> {
+  const defaultParserConfig = getDefaultParserConfig();
+  const parserConfigPath = path.join(configPath, './parser.js');
+  if (await fs.exists(parserConfigPath)) {
+    try {
+      // HACK: Dyamic import here doesn't work for the VSCode packaged extension.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      /*
+      const result = isVSCodeWebExtension()
+        ? await import(parserConfigPath)
+        : (() => {
+            delete require.cache[require.resolve(parserConfigPath)];
+            return require(parserConfigPath);
+          })();
+      */
+      // NOTE: Never mind, the above code doesn't work in VSCode Web extension
+      const script = await fs.readFile(parserConfigPath);
+      const result = interpretJS(script);
+      return sanitizeParserConfig(defaultParserConfig, result);
+    } catch (e) {
+      console.error(e);
+      return defaultParserConfig;
+    }
+  } else {
+    await fs.writeFile(
+      parserConfigPath,
+      `({
+  // Please visit the URL below for more information:
+  // https://shd101wyy.github.io/markdown-preview-enhanced/#/extend-parser
+
+  onWillParseMarkdown: async function(markdown) {
+    return markdown;
+  },
+
+  onDidParseMarkdown: async function(html) {
+    return html;
+  },
+})`,
+    );
+    return defaultParserConfig;
+  }
+}
+
+export function wrapNodeFSAsApi(): FileSystemApi {
+  const fsPromises = fs.promises;
+  return {
+    readFile: async (_path: string, encoding: BufferEncoding = 'utf-8') => {
+      return (await fsPromises.readFile(_path, encoding)).toString();
+    },
+    writeFile: async (
+      _path: string,
+      content: string,
+      encoding: BufferEncoding = 'utf8',
+    ) => {
+      return await fsPromises.writeFile(_path, content, encoding);
+    },
+    mkdir: async (_path: string) => {
+      await fsPromises.mkdir(_path, { recursive: true });
+    },
+    exists: async (_path: string) => {
+      return fs.existsSync(_path);
+    },
+    stat: async (_path: string) => {
+      return await fsPromises.stat(_path);
+    },
+    readdir: async (_path: string) => {
+      return await fsPromises.readdir(_path);
+    },
+    unlink: async (_path: string) => {
+      return await fsPromises.unlink(_path);
+    },
+  };
+}

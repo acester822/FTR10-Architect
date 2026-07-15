@@ -1,0 +1,62 @@
+# === FTR10 root profile ===
+# This is the Hermes-style monorepo (config + code). Code lives in FTR10.Codex/
+
+# --- Generated runtime (derived from theme.json, regenerated on activation) ---
+css.files/
+shim.js
+vars.json
+terminal-colors.zsh
+incorrect_workbench.js
+assets/
+symbolic.links/
+
+# --- Backgrounds: only keep files starting with Default ---
+# Ignore everything in backgrounds, then re-include Default*
+backgrounds/*
+!backgrounds/Default*
+!backgrounds/.gitkeep
+
+# --- FTR10.Codex build artifacts (also covered by nested .gitignore) ---
+FTR10.Codex/node_modules/
+FTR10.Codex/out/
+FTR10.Codex/dist/
+FTR10.Codex/.vscode-test/
+FTR10.Codex/.vscode-test-web/
+FTR10.Codex/*.vsix
+FTR10.Codex/.direnv/
+FTR10.Codex/mume/
+FTR10.Codex/crossnote/out/
+FTR10.Codex/crossnote/dependencies/
+FTR10.Codex/crossnote/webview/
+FTR10.Codex/.pnpm-store/
+FTR10.Codex/.cache/
+FTR10.Codex/.tmp/
+
+# --- Logs / OS ---
+*.log
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+.cache/
+.tmp/
+
+# --- Theme state (uncomment if you don't want to track sessions) ---
+# theme.json is the source of truth (architect sessions + vars) – large & changes often
+# If you want a clean git history, ignore it; if you want to backup sessions, keep it tracked
+# theme.json
+
+# --- Optional: ignore fonts if they are large binaries you manage elsewhere ---
+# fonts/
+
+# --- Keep docs/icons tracked ---
+!FTR10.Codex.Docs/
+!FTR10.Icons/
+!fonts/
+!config.js
+!head.html
+!parser.js
+!README.md

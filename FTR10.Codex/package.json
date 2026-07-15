@@ -1,0 +1,803 @@
+{
+  "name": "ftr10-codex",
+  "displayName": "FTR10 Codex",
+  "version": "0.11.3",
+  "description": "FTR10 Codex unified theme and markdown preview extension.",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown"
+  ],
+  "bugs": {
+    "url": "https://github.com/acester822/vscode-markdown-preview-aces-edition/issues"
+  },
+  "repository": "https://github.com/acester822/vscode-markdown-preview-aces-edition",
+  "license": "NCSA",
+  "contributors": [
+    "acester822"
+  ],
+  "publisher": "acester822",
+  "main": "./out/native/extension.js",
+  "browser": "./out/web/extension.js",
+  "scripts": {
+    "build": "gulp copy-files && gulp clean-out && node build.js",
+    "check:all": "yarn check:eslint && yarn check:prettier",
+    "check:eslint": "eslint \"**/*\"",
+    "check:prettier": "prettier --check \"**/*.*\"",
+    "fix:all": "yarn fix:eslint && yarn fix:eslint && yarn fix:prettier",
+    "fix:eslint": "eslint --fix \"**/*\"",
+    "fix:prettier": "prettier --write \"**/*.*\"",
+    "prepare": "husky install",
+    "run-in-browser": "concurrently \"vscode-test-web --browserType=chromium --extensionDevelopmentPath=. $SERVE_DIR\" \"npx http-server ./crossnote -p 6789 --cors\"",
+    "run-in-vscode-dev": "npx serve --cors -l 5000 --ssl-cert $HOME/certs/localhost.pem --ssl-key $HOME/certs/localhost-key.pem",
+    "test": "pnpm build && node ./node_modules/vscode/bin/test",
+    "vscode:prepublish": "pnpm install && pnpm build",
+    "watch": "gulp copy-files && gulp clean-out && node build.js --watch"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdown-preview-aces-edition.openPreviewToTheSide",
+        "title": "%markdown-preview-aces-edition.openPreviewToTheSide.title%",
+        "category": "Markdown",
+        "icon": {
+          "light": "./media/preview-right-light.svg",
+          "dark": "./media/preview-right-dark.svg"
+        }
+      },
+      {
+        "command": "markdown-preview-aces-edition.openPreview",
+        "title": "%markdown-preview-aces-edition.openPreview.title%",
+        "category": "Markdown",
+        "icon": {
+          "light": "./media/preview-right-light.svg",
+          "dark": "./media/preview-right-dark.svg"
+        }
+      },
+      {
+        "command": "markdown-preview-aces-edition.toggleScrollSync",
+        "title": "%markdown-preview-aces-edition.toggleScrollSync.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.toggleLiveUpdate",
+        "title": "%markdown-preview-aces-edition.toggleLiveUpdate.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.toggleBreakOnSingleNewLine",
+        "title": "%markdown-preview-aces-edition.toggleBreakOnSingleNewLine.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.openImageHelper",
+        "title": "%markdown-preview-aces-edition.openImageHelper.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.runAllCodeChunks",
+        "title": "%markdown-preview-aces-edition.runAllCodeChunks.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.runCodeChunk",
+        "title": "%markdown-preview-aces-edition.runCodeChunk.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.syncPreview",
+        "title": "%markdown-preview-aces-edition.syncPreview.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.customizeCss",
+        "title": "%markdown-preview-aces-edition.customizeCss.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.insertNewSlide",
+        "title": "%markdown-preview-aces-edition.insertNewSlide.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.insertTable",
+        "title": "%markdown-preview-aces-edition.insertTable.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.insertPagebreak",
+        "title": "%markdown-preview-aces-edition.insertPagebreak.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.createTOC",
+        "title": "%markdown-preview-aces-edition.createTOC.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.openConfigScript",
+        "title": "%markdown-preview-aces-edition.openConfigScript.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.extendParser",
+        "title": "%markdown-preview-aces-edition.extendParser.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.customizePreviewHtmlHead",
+        "title": "%markdown-preview-aces-edition.customizePreviewHtmlHead.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.openConfigScriptInWorkspace",
+        "title": "%markdown-preview-aces-edition.openConfigScriptInWorkspace.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.extendParserInWorkspace",
+        "title": "%markdown-preview-aces-edition.extendParserInWorkspace.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.customizePreviewHtmlHeadInWorkspace",
+        "title": "%markdown-preview-aces-edition.customizePreviewHtmlHeadInWorkspace.title%"
+      },
+      {
+        "command": "markdown-preview-aces-edition.showUploadedImages",
+        "title": "%markdown-preview-aces-edition.showUploadedImages.title%",
+        "enablement": "!isWeb"
+      },
+      {
+        "command": "markdown-preview-aces-edition.publish",
+        "title": "%markdown-preview-aces-edition.publish.title%",
+        "category": "Markdown"
+      },
+      {
+        "command": "themeSync.openPanel",
+        "title": "FTR10 Codex: Open Theme Editor"
+      },
+      {
+        "command": "themeSync.patchWorkbench",
+        "title": "FTR10 Codex: Patch workbench"
+      },
+      {
+        "command": "themeSync.applyPreset",
+        "title": "FTR10 Codex: Apply Preset"
+      }
+    ],
+    "themes": [
+      {
+        "label": "FTR10 Base",
+        "uiTheme": "vs-dark",
+        "path": "./themes/ftr10-base-color-theme.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "themeSync",
+          "title": "FTR10 Codex",
+          "icon": "./media/logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "themeSync": [
+        {
+          "id": "themeSync.sidebar",
+          "name": "Themes",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Markdown Preview Aces Edition",
+      "properties": {
+        "markdown-preview-aces-edition.configPath": {
+          "markdownDescription": "Restart is required after changes. The global configuration directory path. Leave it empty to use `$HOME/.ftr10` as the config path.",
+          "default": "",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.usePandocParser": {
+          "description": "Enable this option will render markdown by pandoc instead of markdown-it.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.breakOnSingleNewLine": {
+          "description": "In Markdown, a single newline character doesn't cause a line break in the generated HTML. In GitHub Flavored Markdown, that is not true. Enable this config option to insert line breaks in rendered HTML for single newlines in Markdown source.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.scrollSync": {
+          "description": "Automatic scroll sync. This is now partially supported.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.liveUpdate": {
+          "description": "Re-render the preview as the contents of the source changes, without requiring the source buffer to be saved. If disabled, the preview is re-rendered only when the buffer is saved to disk.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.liveUpdateDebounceMs": {
+          "description": "Debounce time in milliseconds for live updates. Higher values reduce CPU usage but may feel less responsive. Lower values provide more immediate feedback but may impact performance.",
+          "default": 300,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "markdown-preview-aces-edition.previewMode": {
+          "markdownDescription": "- **Single Preview**: Only one preview will be shown for all editors.\n- **Multiple Previews**: Multiple previews will be shown. Each editor has its own preview.\n- **Previews Only**: No editor will be shown. Only previews will be shown. You can use the in-preview editor to edit the markdown.\n\nRestart is required after changes.",
+          "type": "string",
+          "enum": [
+            "Single Preview",
+            "Multiple Previews",
+            "Previews Only"
+          ],
+          "default": "Single Preview"
+        },
+        "markdown-preview-aces-edition.automaticallyShowPreviewOfMarkdownBeingEdited": {
+          "description": "Automatically show preview of markdown being edited.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.disableAutoPreviewForUriSchemes": {
+          "markdownDescription": "A list of URI schemes (e.g., `vscode-notebook-cell`) to exclude from the `automaticallyShowPreviewOfMarkdownBeingEdited` feature. Files matching these schemes won't trigger the automatic preview.",
+          "default": [
+            "vscode-notebook-cell"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "markdown-preview-aces-edition.previewColorScheme": {
+          "type": "string",
+          "enum": [
+            "selectedPreviewTheme",
+            "systemColorScheme",
+            "editorColorScheme"
+          ],
+          "default": "selectedPreviewTheme",
+          "markdownEnumDescriptions": [
+            "Use the `markdown-preview-aces-edition.previewTheme` setting.",
+            "Follow system color scheme. If set to true, then the theme of markdown preview will automatically switch between light and dark when your system switch between light and dark. For example, if you set the current preview theme to `one-light.css`, then when your system is dark, the preview theme will be switched to `one-dark.css` automatically. If set to false, then the theme of markdown preview will not be changed automatically.",
+            "Use the same theme as the editor (light or dark). If set to true, then the theme of markdown preview will automatically switch between light and dark when you switch between vscode light and dark theme. For example, if you set the current preview theme to `one-light.css`, then when you switch to vscode dark theme, the preview theme will be switched to `one-dark.css` automatically. If set to false, then the theme of markdown preview will not be changed automatically."
+          ]
+        },
+        "markdown-preview-aces-edition.publishUrl": {
+          "description": "Default remote publish URL for generated HTML output. Leave empty to publish locally and serve HTML from a local port.",
+          "default": "",
+          "type": "string"
+        },
+        "themeSync.profilePath": {
+          "description": "Absolute path to theme profile folder. Defaults to ~/.ftr10.",
+          "default": "",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.enableTypographer": {
+          "description": "Enable smartypants and other sweet transforms.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.mathRenderingOption": {
+          "description": "Choose the Math expression rendering method here. You can also disable math rendering if you want by choosing 'None'.",
+          "default": "KaTeX",
+          "type": "string",
+          "enum": [
+            "KaTeX",
+            "MathJax",
+            "None"
+          ]
+        },
+        "markdown-preview-aces-edition.mathInlineDelimiters": {
+          "description": "Use customized Math expression inline delimiters.",
+          "default": [
+            [
+              "$",
+              "$"
+            ],
+            [
+              "\\(",
+              "\\)"
+            ]
+          ],
+          "type": "array"
+        },
+        "markdown-preview-aces-edition.mathBlockDelimiters": {
+          "description": "Use customized Math expression block delimiters.",
+          "default": [
+            [
+              "$$",
+              "$$"
+            ],
+            [
+              "\\[",
+              "\\]"
+            ]
+          ],
+          "type": "array"
+        },
+        "markdown-preview-aces-edition.mathRenderingOnlineService": {
+          "description": "Choose the Math expression rendering method option for GFM markdown export (Save as Markdown).",
+          "default": "https://latex.codecogs.com/gif.latex",
+          "type": "string",
+          "enum": [
+            "https://latex.codecogs.com/gif.latex",
+            "https://latex.codecogs.com/svg.latex",
+            "https://latex.codecogs.com/png.latex"
+          ]
+        },
+        "markdown-preview-aces-edition.mathjaxV3ScriptSrc": {
+          "description": "MathJax v3 script source. Leave it empty to use the default CDN.",
+          "default": "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.enableWikiLinkSyntax": {
+          "description": "Enable Wiki Link syntax support. More information can be found at https://help.github.com/articles/adding-links-to-wikis/",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enableLinkify": {
+          "description": "Enable or disable conversion of URL-like text to links in the markdown preview.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.useGitHubStylePipedLink": {
+          "description": "If checked, we use GitHub style piped wiki links, i.e. [[linkText|wikiLink]]. Otherwise, we use [[wikiLink|linkText]] as the original Wikipedia style.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enableEmojiSyntax": {
+          "description": "Enable emoji & font-awesome plugin. This only works for markdown-it parser, but not pandoc parser.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enableExtendedTableSyntax": {
+          "description": "Enable extended table syntax to support merging table cells.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enableCriticMarkupSyntax": {
+          "description": "Enable CriticMarkup syntax. Only works with markdown-it parser. Please check http://criticmarkup.com/users-guide.php for more information.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.wikiLinkTargetFileExtension": {
+          "markdownDescription": "The file extension for the link in wikilink if the link does not have an extension.",
+          "default": ".md",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.wikiLinkTargetFileNameChangeCase": {
+          "markdownDescription": "The case for the file name in wikilink. If the value is `none`, then the file name will not be changed. Otherwise, the file name will be transformed to the specified case. You can read https://www.npmjs.com/package/case-anything for more details.",
+          "default": "none",
+          "type": "string",
+          "enum": [
+            "none",
+            "camelCase",
+            "pascalCase",
+            "kebabCase",
+            "snakeCase",
+            "constantCase",
+            "trainCase",
+            "adaCase",
+            "cobolCase",
+            "dotNotation",
+            "pathCase",
+            "spaceCase",
+            "capitalCase",
+            "lowerCase",
+            "upperCase"
+          ]
+        },
+        "markdown-preview-aces-edition.frontMatterRenderingOption": {
+          "description": "Front matter rendering option",
+          "type": "string",
+          "enum": [
+            "none",
+            "table",
+            "code block"
+          ],
+          "default": "none"
+        },
+        "markdown-preview-aces-edition.mermaidTheme": {
+          "description": "Mermaid theme, you can choose one from [\"mermaid.css\", \"mermaid.dark.css\", \"mermaid.forest.css\"]",
+          "default": "default",
+          "type": "string",
+          "enum": [
+            "default",
+            "dark",
+            "forest"
+          ]
+        },
+        "markdown-preview-aces-edition.codeBlockTheme": {
+          "description": "Code block theme. If `auto.css` is chosen, then the code block theme that best matches the current preview theme will be picked.",
+          "default": "auto.css",
+          "type": "string",
+          "enum": [
+            "auto.css",
+            "default.css",
+            "atom-dark.css",
+            "atom-light.css",
+            "atom-material.css",
+            "coy.css",
+            "darcula.css",
+            "dark.css",
+            "funky.css",
+            "github.css",
+            "github-dark.css",
+            "hopscotch.css",
+            "monokai.css",
+            "okaidia.css",
+            "one-dark.css",
+            "one-light.css",
+            "pen-paper-coffee.css",
+            "pojoaque.css",
+            "solarized-dark.css",
+            "solarized-light.css",
+            "twilight.css",
+            "vs.css",
+            "vue.css",
+            "xonokai.css"
+          ]
+        },
+        "markdown-preview-aces-edition.previewTheme": {
+          "description": "Preview Theme",
+          "default": "one-light.css",
+          "type": "string",
+          "enum": [
+            "atom-dark.css",
+            "atom-light.css",
+            "atom-material.css",
+            "github-dark.css",
+            "gothic.css",
+            "medium.css",
+            "monokai.css",
+            "newsprint.css",
+            "night.css",
+            "none.css",
+            "one-dark.css",
+            "one-light.css",
+            "solarized-dark.css",
+            "aces-codepunk.css"
+          ],
+          "markdownEnumDescriptions": [
+            "Atom Dark",
+            "Atom Light",
+            "Atom Material",
+            "GitHub Dark",
+            "Gothic",
+            "Medium",
+            "Monokai",
+            "Newsprint",
+            "Night",
+            "None",
+            "One Dark",
+            "One Light",
+            "Solarized Dark",
+            "Aces CodePunk"
+          ]
+        },
+        "markdown-preview-aces-edition.revealjsTheme": {
+          "description": "RevealJS Presentation Theme",
+          "default": "white.css",
+          "type": "string",
+          "enum": [
+            "beige.css",
+            "black.css",
+            "blood.css",
+            "league.css",
+            "moon.css",
+            "night.css",
+            "serif.css",
+            "simple.css",
+            "sky.css",
+            "solarized.css",
+            "white.css",
+            "none.css"
+          ]
+        },
+        "markdown-preview-aces-edition.protocolsWhiteList": {
+          "description": "Accepted protocols for links.",
+          "default": "http://, https://, atom://, file://, mailto:, tel:",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.imageFolderPath": {
+          "description": "When using Image Helper to copy images, by default images will be copied to root image folder path '/assets'",
+          "default": "/assets",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.imageUploader": {
+          "description": "You can choose different image uploader to upload image",
+          "default": "imgur",
+          "type": "string",
+          "enum": [
+            "imgur",
+            "sm.ms",
+            "qiniu"
+          ]
+        },
+        "markdown-preview-aces-edition.qiniuAccessKey": {
+          "type": "string",
+          "default": "",
+          "description": "Qiniu AccessKey"
+        },
+        "markdown-preview-aces-edition.qiniuSecretKey": {
+          "type": "string",
+          "default": "",
+          "description": "Qiniu SecretKey"
+        },
+        "markdown-preview-aces-edition.qiniuBucket": {
+          "type": "string",
+          "default": "",
+          "description": "Qiniu Bucket"
+        },
+        "markdown-preview-aces-edition.qiniuDomain": {
+          "type": "string",
+          "default": "http://",
+          "description": "Qiniu Domain"
+        },
+        "markdown-preview-aces-edition.printBackground": {
+          "description": "Whether to print background for file export or not. If set to `false`, then `github-light` preview theme will be used. You can also set `print_background` in front-matter for individual files.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.chromePath": {
+          "description": "Chrome executable path, which is used for Puppeteer export. Leaving it empty means the path will be found automatically.",
+          "default": "",
+          "type": "string",
+          "scope": "machine"
+        },
+        "markdown-preview-aces-edition.imageMagickPath": {
+          "description": "ImageMagick command line path. Should be either `magick` or `convert`. Leaving it empty means the path will be found automatically.",
+          "default": "",
+          "type": "string",
+          "scope": "machine"
+        },
+        "markdown-preview-aces-edition.pandocPath": {
+          "description": "Pandoc executable path",
+          "default": "pandoc",
+          "type": "string",
+          "scope": "machine"
+        },
+        "markdown-preview-aces-edition.pandocMarkdownFlavor": {
+          "description": "The pandoc markdown flavor you want",
+          "default": "markdown-raw_tex+tex_math_single_backslash",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.pandocArguments": {
+          "description": "Args passed to pandoc command e.g. [\"--smart\", \"--filter=/bin/exe\"] Please use long argument names.",
+          "default": [],
+          "type": "array"
+        },
+        "markdown-preview-aces-edition.latexEngine": {
+          "description": "Default latex engine for Pandoc export and latex code chunk.",
+          "default": "pdflatex",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.enableScriptExecution": {
+          "description": "Enables executing code chunks and importing javascript files.\n⚠️ Please use this feature with caution because it may put your security at risk! Your machine can get hacked if someone makes you open a markdown with malicious code while script execution is enabled.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enableHTML5Embed": {
+          "description": " Enables transform audio video link to to html5 embed audio video tags.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.HTML5EmbedUseImageSyntax": {
+          "description": " Enables video/audio embed with ![]() syntax (default).",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.HTML5EmbedUseLinkSyntax": {
+          "description": "Enables video/audio embed with []() syntax.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.HTML5EmbedIsAllowedHttp": {
+          "description": "When true embed media with http:// schema in URLs. When false ignore and don't embed them.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.HTML5EmbedAudioAttributes": {
+          "description": "HTML attributes to pass to audio tags.",
+          "default": "controls preload=\"metadata\" width=\"320\"",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.HTML5EmbedVideoAttributes": {
+          "description": "HTML attributes to pass to video tags.",
+          "default": "controls preload=\"metadata\" width=\"320\" height=\"240\"",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.puppeteerWaitForTimeout": {
+          "description": "Puppeteer waits for a certain timeout in milliseconds before the document export.",
+          "default": 0,
+          "type": "number"
+        },
+        "markdown-preview-aces-edition.puppeteerArgs": {
+          "description": "Args passed to puppeteer.launch({args: $puppeteerArgs})",
+          "default": [],
+          "type": "array"
+        },
+        "markdown-preview-aces-edition.plantumlServer": {
+          "description": "Render using PlantUML server instead of binary. Leave it empty to use the builtin plantuml.jar binary (`java` is required in system path). Eg: \"http://localhost:8080/svg/\"",
+          "default": "",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.hideDefaultVSCodeMarkdownPreviewButtons": {
+          "description": "Hide the default VSCode markdown preview extension buttons. Restarting the editor is required to make this config take effect.",
+          "default": true,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.jsdelivrCdnHost": {
+          "markdownDescription": "jsDelivr CDN host. Example values: `cdn.jsdelivr.net`, `fastly.jsdelivr.net`, `gcore.jsdelivr.net`, `testingcf.jsdelivr.net`",
+          "default": "cdn.jsdelivr.net",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.plantumlJarPath": {
+          "description": "Absolute path to the plantuml.jar file (`java` is required in system path). You can download it from https://plantuml.com/download.",
+          "default": "",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.krokiServer": {
+          "description": "The URL of the Kroki server to use.  ",
+          "default": "https://kroki.io",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.webSequenceDiagramsServer": {
+          "description": "The URL of the WebSequenceDiagrams server to use for rendering wsd code blocks.",
+          "default": "https://www.websequencediagrams.com",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.webSequenceDiagramsApiKey": {
+          "description": "API key for WebSequenceDiagrams. Required for wider diagram sizes.",
+          "default": "",
+          "type": "string"
+        },
+        "markdown-preview-aces-edition.markdownFileExtensions": {
+          "description": "Markdown file extensions. This is used to determine whether to show the preview button in the markdown file context menu.",
+          "default": [
+            ".md",
+            ".markdown",
+            ".mdown",
+            ".mkdn",
+            ".mkd",
+            ".rmd",
+            ".qmd",
+            ".mdx"
+          ],
+          "type": "array"
+        },
+        "markdown-preview-aces-edition.alwaysShowBacklinksInPreview": {
+          "description": "Always show backlinks in preview.",
+          "default": false,
+          "type": "boolean"
+        },
+        "markdown-preview-aces-edition.enablePreviewZenMode": {
+          "description": "Enable this option will hide unnecessary UI elements in preview unless your mouse is over it.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "customEditors": [
+      {
+        "viewType": "markdown-preview-aces-edition",
+        "displayName": "%customEditorPreviewDisplayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.{md,markdown,mdown,mkdn,mkd,rmd,qmd}"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "markdown-preview-aces-edition.openPreviewToTheSide",
+        "key": "ctrl+k v",
+        "mac": "cmd+k v",
+        "when": "editorLangId == markdown"
+      },
+      {
+        "command": "markdown-preview-aces-edition.openPreview",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorLangId == markdown"
+      },
+      {
+        "command": "markdown-preview-aces-edition.runAllCodeChunks",
+        "key": "ctrl+shift+enter",
+        "when": "editorLangId == markdown"
+      },
+      {
+        "command": "markdown-preview-aces-edition.runCodeChunk",
+        "key": "shift+enter",
+        "when": "editorLangId == markdown"
+      },
+      {
+        "command": "markdown-preview-aces-edition.syncPreview",
+        "key": "ctrl+shift+s",
+        "when": "editorLangId == markdown"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "markdown-preview-aces-edition.openPreviewToTheSide",
+          "when": "editorLangId == markdown || editorLangId == quarto",
+          "group": "markdown-preview-aces-edition"
+        },
+        {
+          "command": "markdown-preview-aces-edition.publish",
+          "when": "editorLangId == markdown || editorLangId == quarto",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "markdown-preview-aces-edition.openPreviewToTheSide",
+          "when": "editorLangId == markdown || editorLangId == quarto",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown-preview-aces-edition.publish",
+          "when": "editorLangId == markdown || editorLangId == quarto",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "markdown-preview-aces-edition.publish",
+          "when": "activeViewlet == markdown-preview-aces-edition",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:markdown",
+    "onLanguage:quarto",
+    "onView:themeSync.sidebar",
+    "onCommand:themeSync.openPanel",
+    "onCommand:themeSync.patchWorkbench"
+  ],
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "**/*.*": [
+      "eslint",
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "@types/crypto-js": "^4.1.2",
+    "@types/vfile": "^3.0.2",
+    "async-mutex": "^0.4.0",
+    "chokidar": "^3.5.3",
+    "crypto-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/cheerio": "0.22.11",
+    "@types/mocha": "^5.2.5",
+    "@types/node": "16",
+    "@types/vscode": "1.70.0",
+    "@typescript-eslint/eslint-plugin": "^6.5.0",
+    "@typescript-eslint/parser": "^6.5.0",
+    "@vscode/test-web": "^0.0.67",
+    "concurrently": "^8.2.1",
+    "esbuild": "^0.25.0",
+    "esbuild-plugin-polyfill-node": "^0.3.0",
+    "eslint": "^8.48.0",
+    "gulp": "^4.0.2",
+    "http-server": "^14.1.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^9.4.2",
+    "mocha": "^6.1.4",
+    "prettier": "^1.18.2",
+    "prettier-plugin-packagejson": "^2.0.1",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.2.2",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^5.1.4"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "icon": "media/logo.png"
+}

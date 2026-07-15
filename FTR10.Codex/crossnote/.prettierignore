@@ -1,0 +1,22 @@
+## Ignore all files (but still allow sub-folder scanning)
+*
+!*/
+
+## Allow certain file types
+!*.css
+!*.js
+!*.json
+!*.less
+!*.md
+!*.ts
+!*.tsx
+!*.yaml
+!*.yml
+
+## special cases
+dependencies/**
+!dependencies/README.md
+src/prism/prism.js
+styles/*.css
+test/markdown/test-files/**
+pnpm-lock.yaml

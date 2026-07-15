@@ -1,0 +1,116 @@
+{
+  "iconDefinitions": {
+    "_folder": {
+      "iconPath": "./icons/folder.svg"
+    },
+    "_folder_open": {
+      "iconPath": "./icons/folder.svg"
+    },
+    "_file": {
+      "iconPath": "./icons/file_code.svg"
+    },
+    "_file_js": {
+      "iconPath": "./icons/file_js.svg"
+    },
+    "_file_ts": {
+      "iconPath": "./icons/file_js.svg"
+    },
+    "_file_json": {
+      "iconPath": "./icons/file_json.svg"
+    },
+    "_file_yaml": {
+      "iconPath": "./icons/file_json.svg"
+    },
+    "_file_yml": {
+      "iconPath": "./icons/file_json.svg"
+    },
+    "_file_md": {
+      "iconPath": "./icons/file_md.svg"
+    },
+    "_file_markdown": {
+      "iconPath": "./icons/file_md.svg"
+    },
+    "_file_html": {
+      "iconPath": "./icons/file_html.svg"
+    },
+    "_file_code": {
+      "iconPath": "./icons/file_code.svg"
+    },
+    "_terminal": {
+      "iconPath": "./icons/terminal.svg"
+    },
+    "_settings": {
+      "iconPath": "./icons/settings.svg"
+    },
+    "_error": {
+      "iconPath": "./icons/error.svg"
+    },
+    "_warning": {
+      "iconPath": "./icons/warning.svg"
+    },
+    "_success": {
+      "iconPath": "./icons/success.svg"
+    }
+  },
+  "folder": "_folder",
+  "folderExpanded": "_folder_open",
+  "file": "_file",
+  "fileExtensions": {
+    "js": "_file_js",
+    "jsx": "_file_js",
+    "mjs": "_file_js",
+    "cjs": "_file_js",
+    "ts": "_file_ts",
+    "tsx": "_file_ts",
+    "json": "_file_json",
+    "jsonc": "_file_json",
+    "yaml": "_file_yaml",
+    "yml": "_file_yml",
+    "md": "_file_md",
+    "mdx": "_file_md",
+    "markdown": "_file_markdown",
+    "html": "_file_html",
+    "htm": "_file_html",
+    "xhtml": "_file_html",
+    "py": "_file_code",
+    "rb": "_file_code",
+    "php": "_file_code",
+    "java": "_file_code",
+    "kt": "_file_code",
+    "swift": "_file_code",
+    "go": "_file_code",
+    "rs": "_file_code",
+    "css": "_file_code",
+    "scss": "_file_code",
+    "sass": "_file_code",
+    "less": "_file_code",
+    "svg": "_file_code",
+    "xml": "_file_code",
+    "sql": "_file_code",
+    "sh": "_terminal",
+    "bash": "_terminal",
+    "zsh": "_terminal",
+    "fish": "_terminal",
+    "ps1": "_terminal"
+  },
+  "fileNames": {
+    "package.json": "_file_json",
+    "tsconfig.json": "_file_json",
+    "jsconfig.json": "_file_json",
+    ".eslintrc.json": "_file_json",
+    ".prettierrc": "_file_yaml",
+    "settings.json": "_settings",
+    ".settings.json": "_settings"
+  },
+  "languageIds": {
+    "javascript": "_file_js",
+    "typescript": "_file_ts",
+    "json": "_file_json",
+    "yaml": "_file_yaml",
+    "markdown": "_file_md",
+    "html": "_file_html",
+    "shellscript": "_terminal",
+    "python": "_file_code"
+  },
+  "hidesExplorerArrows": true
+}

@@ -1,0 +1,1301 @@
+:root { color-scheme: normal !important;}
+
+@bg:          var(--ftr10-glass-bg-menu);
+@fg:          var(--ftr10-text);
+// ── Palette aliases (point at CSS vars so the ThemeCustomizer works) ──────────
+@neon-blue:   var(--ftr10-accent-1);
+@neon-purple: var(--ftr10-accent-2);
+@neon-pink:   var(--ftr10-accent-3);
+@neon-green:  var(--ftr10-success);
+@neon-orange: var(--ftr10-warning);
+@dark-bg:     var(--ftr10-bg);
+@card-bg:     var(--ftr10-glass-bg-widget-strong);
+@fg-subtle:   var(--ftr10-text-muted);
+@fg-strong:   var(--ftr10-text);
+@border:      var(--ftr10-border);
+
+// ─── Web Font Imports (always loaded, regardless of active preview theme) ─────
+@import (css) url("https://fonts.bunny.net/css?family=victor-mono:300,300i,400,400i,500,500i,700,700i&display=swap");
+@import "font_local.less";
+
+html,
+body {
+  font-family: var(--ftr10-body-font, 'Victor Mono', monospace);
+  width: 100%;
+  // height: 100%;
+}
+
+.scrollbar-style {
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    // -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    border-radius: 10px;
+    background-color: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 5px; // -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
+    background-color: rgba(150, 150, 150, 0.66);
+    border: 4px solid rgba(150, 150, 150, 0.66);
+    background-clip: content-box;
+  }
+}
+
+.crossnote {
+  .scrollbar-style();
+}
+
+// the preview
+.preview-container {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
+  &.show-sidebar-toc {
+    .md-sidebar-toc {
+      font-family: 'Victor Mono', monospace;
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 268px;
+      height: 100%;
+      padding: 32px 0;
+      overflow: auto;
+      background-color: @bg;
+      // color: @fg;
+      font-size: 14px;
+      box-shadow: -4px 0px 12px rgba(150, 150, 150, 0.33);
+      box-sizing: border-box;
+
+      a {
+        // color: @fg;
+        text-decoration: none;
+      }
+
+      .md-toc {
+        padding: 0 16px;
+
+        .md-toc-link-wrapper {
+          .md-toc-link {
+            display: inline;
+            padding: 0.25rem 0;
+
+            p,
+            div {
+              display: inline;
+            }
+          }
+
+          &.highlighted {
+            .md-toc-link {
+              font-weight: 800;
+            }
+          }
+        }
+      }
+    }
+    .crossnote {
+      width: calc(~'100% - 268px');
+    }
+  }
+
+  .crossnote[data-for='preview'] {
+    left: 0;
+    top: 0;
+    margin: 0; // z-index: 999;
+    padding: 2em;
+    overflow: auto;
+    display: block;
+    box-sizing: border-box;
+    position: relative;
+
+    // code chunk
+    .code-chunk {
+      position: relative;
+
+      /*
+            .output-div {
+                overflow-x: auto;
+
+                svg {
+                    display: block;
+                }
+            }
+            */
+
+      pre {
+        cursor: text;
+      }
+
+      .code-chunk-btn-group {
+        position: absolute;
+        right: 28px;
+        top: 0;
+        display: none;
+
+        .run-btn,
+        .run-all-btn {
+          float: right;
+          margin-left: 4px;
+          min-width: 38px;
+
+          &:hover {
+            cursor: pointer;
+          }
+        }
+      }
+
+      &:hover {
+        .code-chunk-btn-group {
+          display: block;
+        }
+      }
+
+      .status {
+        position: absolute;
+        right: 0;
+        top: 0;
+        font-size: 0.85em;
+        color: inherit;
+        padding: 2px 6px;
+        background-color: rgba(0, 0, 0, 0.04);
+        display: none;
+      }
+
+      &.running {
+        .code-chunk-btn-group {
+          display: none;
+        }
+        .status {
+          display: block;
+        }
+      }
+    }
+
+    // highlight
+    .highlight-line {
+      position: relative;
+    }
+
+    /*
+        // NOTE: This will cause margin error on elements like `<pre>`
+        [data-source-line] {
+          margin: 0;
+        }
+        */
+  }
+}
+
+body[data-presentation-mode] {
+  .crossnote[data-for='preview'] {
+    padding: 0 !important;
+    width: 100%;
+    height: 100%;
+  }
+
+  // As in-preview editor doesn't work well for the
+  // presentation mode, we hide it for now.
+  .final-line.end-of-document {
+    display: none;
+  }
+
+  // hide both topbar and footer
+  .topbar,
+  .footer {
+    display: none;
+  }
+}
+
+body:not([data-presentation-mode]) {
+  .crossnote[data-for='preview'] {
+    height: auto;
+  }
+
+  .final-line.end-of-document {
+    margin-top: 64px !important;
+    margin-bottom: 64px !important;
+    padding: 8px;
+    color: color-mix(in srgb, var(--ftr10-accent-1) 28%, transparent);
+    cursor: pointer;
+    font-family: 'Orbitron', 'Victor Mono', monospace;
+    font-size: 0.7em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--ftr10-accent-1) 18%, transparent);
+
+    &::before {
+      content: '── end of document ──';
+    }
+  }
+
+  &[data-preview-theme='dark'] {
+    .final-line.end-of-document {
+      color: color-mix(in srgb, var(--ftr10-accent-1) 18%, transparent);
+    }
+  }
+}
+
+.monaco-line-decoration {
+  background: color-mix(in srgb, var(--ftr10-accent-1) 60%, transparent);
+  width: 5px !important;
+  margin-left: 3px;
+}
+
+body.floating-action-open.preview-container {
+  .code-chunk {
+    .code-chunk-btn-group,
+    .status {
+      display: none !important;
+    }
+  }
+}
+
+// ─── Gooey Floating Action Menu ───────────────────────────────────────────────
+
+.gooey-menu {
+  filter: url('#goo-filter');
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+  width: 28px;
+  height: 28px;
+}
+
+.gooey-item,
+.gooey-toggle {
+  background: var(--ftr10-glass-bg);
+  color: var(--ftr10-accent-1);
+  border-radius: 100%;
+  width: 28px;
+  height: 28px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, 0, 0);
+  transition: transform ease-out 200ms, background 150ms, color 150ms;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  pointer-events: auto;
+  z-index: 3;
+
+  &:hover {
+    background: var(--ftr10-highlight-50);
+    color: var(--ftr10-on-accent);
+  }
+}
+
+.gooey-toggle {
+  z-index: 5;
+  transform: translate3d(0, 0, 0);
+  transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition-duration: 400ms;
+
+  &.gooey-toggle--open {
+    transition-timing-function: linear;
+    transition-duration: 200ms;
+    transform: scale(0.9) translate3d(0, 0, 0);
+  }
+
+  &:hover {
+    background: var(--ftr10-accent-1);
+    color: var(--ftr10-on-accent);
+  }
+}
+
+.gooey-ham {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  margin-left: -6px;
+  margin-top: -1px;
+  background: currentColor;
+  transition: transform 200ms;
+
+  &.gooey-ham-1 {
+    transform: translate3d(0, -4px, 0);
+    &.is-open {
+      transform: translate3d(0, 0, 0) rotate(45deg);
+    }
+  }
+
+  &.gooey-ham-2 {
+    transform: translate3d(0, 0, 0);
+    &.is-open {
+      transform: translate3d(0, 0, 0) scaleX(0.1);
+    }
+  }
+
+  &.gooey-ham-3 {
+    transform: translate3d(0, 4px, 0);
+    &.is-open {
+      transform: translate3d(0, 0, 0) rotate(-45deg);
+    }
+  }
+}
+
+// https://github.com/shd101wyy/vscode-markdown-preview-enhanced/issues/1920
+// it seems like tailwindcss overrides the `table` style.
+pre span.token.table {
+  display: inline;
+}
+
+// Fix: code block text color and remove text-shadow
+code[class*='language-'],
+pre[class*='language-'] {
+  color: var(--ftr10-text-muted);
+  text-shadow: none;
+}
+
+// Fix: Prism default theme adds background: hsla(0,0%,100%,.5) to these tokens
+// which produces a visible white tint in dark themes. Strip it globally.
+.token.entity,
+.token.operator,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  background: none !important;
+}
+
+// Fix: line number gutter - center numbers and recolor
+.markdown-preview {
+  pre.line-numbers {
+    .line-numbers-rows {
+      border-right: 1px solid var(--ftr10-gutter-border) !important;
+
+      & > span::before {
+        color: var(--ftr10-gutter-color) !important;
+        text-align: center;
+        width: 3em !important;
+      }
+    }
+  }
+}
+
+// Fix: replace default grey <hr> with gradient divider
+html body hr {
+  height: 4px;
+  margin: 32px 0;
+  background: var(--ftr10-hr-gradient);
+  border: 0 none;
+}
+
+// ─── Section Collapse ─────────────────────────────────────────────────────────
+
+// Toggle button injected as first child of each h1-h6
+.md-collapse-btn {
+  display: inline-block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0.3em 0 0;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.4;
+  font-size: 0.65em;
+  line-height: 1;
+  vertical-align: middle;
+  transition: opacity 0.15s ease, transform 0.2s ease;
+  transform-origin: center;
+
+  &::before {
+    content: '▼';
+    display: inline-block;
+    transition: transform 0.2s ease;
+  }
+
+  &.md-collapse-btn--collapsed::before {
+    transform: rotate(-90deg);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  // Ensure the heading itself is a containing block so the button aligns well
+  .md-collapse-btn {
+    font-size: 0.6em;
+    font-weight: normal;
+  }
+}
+
+// Collapsible section body wrapper
+.md-section-body {
+  &.md-collapsed {
+    display: none;
+  }
+}
+
+// ─── Global heading scale ─────────────────────────────────────────────────────
+// H1 = 1.5em, each level drops by ~0.15em. Applied with !important so these
+// override all per-theme sizes uniformly. Menus, footer, and topbar are
+// unaffected because they live outside .markdown-preview.
+.markdown-preview {
+  h1 { font-size: 1.5em !important; }
+  h2 { font-size: 1.35em !important; }
+  h3 { font-size: 1.2em !important; }
+  h4 { font-size: 1.05em !important; }
+  h5 { font-size: 0.95em !important; }
+  h6 { font-size: 0.85em !important; }
+}
+
+// ─── Monaco Underlay ──────────────────────────────────────────────────────────
+
+// Monaco editor fills the full viewport as the bottom-most editing layer
+.monaco-underlay-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+// Smooth opacity transition for the preview layer
+.crossnote[data-for='preview'] {
+  transition: opacity 0.3s ease;
+}
+
+// Underlay edit mode: preview becomes a semi-transparent ghost above Monaco
+html.underlay-mode,
+body.underlay-mode,
+.underlay-mode,
+html body.underlay-mode,
+body.underlay-mode body,
+.underlay-mode body {
+  overflow: hidden !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+html.underlay-mode,
+body.underlay-mode,
+.underlay-mode,
+html body.underlay-mode,
+body.underlay-mode {
+  filter: none !important;
+}
+
+html.underlay-mode .preview-container,
+body.underlay-mode .preview-container,
+.underlay-mode .preview-container,
+html.underlay-mode .preview-container *,
+body.underlay-mode .preview-container *,
+.underlay-mode .preview-container *,
+html.underlay-mode .preview-container *::before,
+body.underlay-mode .preview-container *::before,
+.underlay-mode .preview-container *::before,
+html.underlay-mode .preview-container *::after,
+body.underlay-mode .preview-container *::after,
+.underlay-mode .preview-container *::after,
+html.underlay-mode .crossnote,
+body.underlay-mode .crossnote,
+.underlay-mode .crossnote,
+html.underlay-mode .crossnote *,
+body.underlay-mode .crossnote *,
+.underlay-mode .crossnote *,
+html.underlay-mode .crossnote *::before,
+body.underlay-mode .crossnote *::before,
+.underlay-mode .crossnote *::before,
+html.underlay-mode .crossnote *::after,
+body.underlay-mode .crossnote *::after,
+.underlay-mode .crossnote *::after,
+html.underlay-mode .markdown-preview,
+body.underlay-mode .markdown-preview,
+.underlay-mode .markdown-preview,
+html.underlay-mode .markdown-preview *,
+body.underlay-mode .markdown-preview *,
+.underlay-mode .markdown-preview *,
+html.underlay-mode .markdown-preview *::before,
+body.underlay-mode .markdown-preview *::before,
+.underlay-mode .markdown-preview *::before,
+html.underlay-mode .markdown-preview *::after,
+body.underlay-mode .markdown-preview *::after,
+.underlay-mode .markdown-preview *::after {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  mix-blend-mode: normal !important;
+}
+
+html.underlay-mode,
+body.underlay-mode,
+.underlay-mode {
+  .preview-container,
+  .crossnote,
+  .crossnote[data-for='preview'],
+  .crossnote.markdown-preview,
+  .markdown-preview {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+    filter: grayscale(1) contrast(0.9) brightness(1.1) !important;
+    mix-blend-mode: normal !important;
+  }
+
+  .crossnote[data-for='preview'] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: auto !important;
+    z-index: 4 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  .monaco-underlay-container,
+  .monaco-underlay-container .margin,
+  .monaco-underlay-container .margin-view-overlays,
+  .monaco-underlay-container .overflow-guard {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  .crossnote[data-for='preview'],
+  .crossnote[data-for='preview'] *,
+  .crossnote[data-for='preview'] *::before,
+  .crossnote[data-for='preview'] *::after {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+  }
+}
+
+// Transparent click interceptor — REMOVED (Monaco receives clicks directly
+// via pointer-events fall-through on the ghost layer)
+
+// ─── Inline Editor ────────────────────────────────────────────────────────────
+
+// Full-viewport backdrop behind the editor box. Click = cancel.
+.inline-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: transparent;
+}
+
+// Editor box, positioned below the element being edited via inline top/left/width styles
+.inline-editor-overlay {
+  position: fixed;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.5), 0 0 16px color-mix(in srgb, var(--ftr10-accent-1) 8%, transparent);
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+// Textarea: monospace, glass-morphism background, auto-height via JS (bounded by max-height)
+.inline-editor-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ftr10-glass-bg);
+  color: var(--ftr10-text);
+  font-family: 'Victor Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 1.5px dashed color-mix(in srgb, var(--ftr10-accent-1) 45%, transparent);
+  border-radius: 14px;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  max-height: 48vh;
+  min-height: 32px;
+
+  &:focus {
+    border-color: color-mix(in srgb, var(--ftr10-accent-1) 85%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--ftr10-accent-1) 14%, transparent);
+  }
+}
+
+// ── Popover Universe: Code chunk run buttons ──────────────────────────────────
+
+.code-chunk-btn-group {
+  .run-btn,
+  .run-all-btn {
+    background: var(--ftr10-glass-bg-widget) !important;
+    border: 1px solid color-mix(in srgb, var(--ftr10-accent-1) 22%, transparent) !important;
+    color: color-mix(in srgb, var(--ftr10-accent-1) 80%, transparent) !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+    transition: all 0.2s ease !important;
+
+    &:hover {
+      background: color-mix(in srgb, var(--ftr10-accent-1) 12%, transparent) !important;
+      border-color: color-mix(in srgb, var(--ftr10-accent-1) 50%, transparent) !important;
+      color: var(--ftr10-accent-1) !important;
+      box-shadow: 0 0 10px color-mix(in srgb, var(--ftr10-accent-1) 25%, transparent) !important;
+    }
+  }
+}
+
+// ── Popover Universe: Image Helper modal ──────────────────────────────────────
+
+dialog.modal::backdrop {
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.modal-box {
+  background: var(--ftr10-glass-bg-widget-strong) !important;
+  border: 1px solid color-mix(in srgb, var(--ftr10-accent-1) 14%, transparent) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.8),
+    0 0 0 1px color-mix(in srgb, var(--ftr10-accent-1) 6%, transparent),
+    inset 0 0 60px color-mix(in srgb, var(--ftr10-accent-1) 1.5%, transparent) !important;
+  color: var(--ftr10-text) !important;
+}
+
+@keyframes pu-modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+.modal[open] .modal-box {
+  animation: pu-modal-in 0.28s ease-out;
+}
+
+// Image drop zones (ImageHelper.tsx uses Tailwind bg-gray-* classes)
+.modal-box {
+  .bg-gray-200,
+  .dark\:bg-gray-700 {
+    background: color-mix(in srgb, var(--ftr10-accent-1) 3.5%, transparent) !important;
+    border: 1px dashed color-mix(in srgb, var(--ftr10-accent-1) 18%, transparent) !important;
+    border-radius: 12px !important;
+    color: var(--ftr10-text-muted) !important;
+  }
+
+  .hover\:bg-gray-300:hover,
+  .dark\:hover\:bg-gray-800:hover {
+    background: color-mix(in srgb, var(--ftr10-accent-1) 7%, transparent) !important;
+    border-color: color-mix(in srgb, var(--ftr10-accent-1) 38%, transparent) !important;
+  }
+
+  .divider {
+    color: var(--ftr10-text-muted) !important;
+
+    &::before,
+    &::after {
+      background-color: color-mix(in srgb, var(--ftr10-accent-1) 10%, transparent) !important;
+    }
+  }
+
+  input[type='text'],
+  input[type='url'] {
+    background: color-mix(in srgb, var(--ftr10-accent-1) 4%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--ftr10-accent-1) 20%, transparent) !important;
+    border-radius: 8px !important;
+    color: var(--ftr10-text) !important;
+
+    &:focus {
+      border-color: color-mix(in srgb, var(--ftr10-accent-1) 55%, transparent) !important;
+      box-shadow: 0 0 10px color-mix(in srgb, var(--ftr10-accent-1) 15%, transparent) !important;
+      outline: none !important;
+    }
+  }
+
+  button {
+    background: color-mix(in srgb, var(--ftr10-accent-1) 8%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--ftr10-accent-1) 22%, transparent) !important;
+    color: color-mix(in srgb, var(--ftr10-accent-1) 85%, transparent) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+
+    &:hover {
+      background: color-mix(in srgb, var(--ftr10-accent-1) 15%, transparent) !important;
+      border-color: color-mix(in srgb, var(--ftr10-accent-1) 50%, transparent) !important;
+      box-shadow: 0 0 12px color-mix(in srgb, var(--ftr10-accent-1) 22%, transparent) !important;
+    }
+  }
+}
+
+// ─── Living Palette System: Kaleidoscope Background ──────────────────────────
+
+// Kaleidoscope layer — sits behind everything, only rendered when
+// --ftr10-kaleidoscope is set to 'on' (via ThemeCustomizer toggle).
+// Uses the same --c1…--c6 CSS vars as the original CodePen, but we map
+// them to the MPAE accent/background palette so it stays theme-consistent.
+.mpae-kaleidoscope {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: none; // hidden by default; shown when --ftr10-kaleidoscope: on
+
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    var(--ftr10-accent-1),
+    var(--ftr10-accent-2),
+    var(--ftr10-accent-3),
+    var(--ftr10-bg),
+    var(--ftr10-accent-1),
+    var(--ftr10-accent-2),
+    var(--ftr10-accent-3),
+    var(--ftr10-bg)
+  );
+  animation: mpae-kaleidoscope-spin 30s linear infinite;
+  filter: blur(100px) saturate(140%);
+  opacity: 0.35;
+}
+
+@keyframes mpae-kaleidoscope-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// When kaleidoscope is enabled via the CSS variable
+html[data-mpae-kaleidoscope="on"] .mpae-kaleidoscope,
+body[data-mpae-kaleidoscope="on"] .mpae-kaleidoscope {
+  display: block;
+}
+
+// Reduced-motion: stop the rotation but keep the gradient visible
+@media (prefers-reduced-motion: reduce) {
+  .mpae-kaleidoscope {
+    animation: none;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Document base styles + per-preset theme blocks (merged from preview_theme/none.less)
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+// ── DaisyUI + contexify CSS variables ────────────────────────────────────────
+:root {
+  // DaisyUI dark base
+  --b1: 220 20% 6%;
+  --b2: 220 18% 9%;
+  --b3: 220 15% 11%;
+  --bc: 220 15% 88%;
+  --p:  183 100% 50%;
+  --pc: 220 20% 5%;
+  --pf: 183 100% 44%;
+  --s:  285 100% 50%;
+  --sc: 220 20% 5%;
+  --sf: 285 100% 44%;
+  --a:  320 100% 50%;
+  --ac: 220 20% 5%;
+  --af: 320 100% 44%;
+  --n:  220 18% 11%;
+  --nf: 220 18% 8%;
+  --nc: 220 12% 72%;
+
+  // react-contexify
+  --contexify-menu-bgColor: var(--ftr10-glass-bg-widget-strong);
+  --contexify-menu-shadow:
+    0 0 0 1px rgba(255,255,255,0.07),
+    0 20px 60px rgba(0,0,0,0.75);
+  --contexify-menu-radius: 10px;
+  --contexify-menu-padding: 4px;
+  --contexify-menu-minWidth: 160px;
+  --contexify-separator-color: rgba(255,255,255,0.08);
+  --contexify-separator-margin: 3px;
+  --contexify-item-color: rgba(255,255,255,0.84);
+  --contexify-activeItem-bgColor: rgba(255,255,255,0.07);
+  --contexify-activeItem-color: var(--ftr10-accent-1);
+  --contexify-activeItem-radius: 6px;
+  --contexify-itemContent-padding: 4px 8px;
+  --contexify-rightSlot-color: rgba(255,255,255,0.38);
+  --contexify-activeRightSlot-color: var(--ftr10-accent-1);
+  --contexify-arrow-color: rgba(255,255,255,0.28);
+  --contexify-activeArrow-color: var(--ftr10-accent-1);
+}
+
+// ── Base document ─────────────────────────────────────────────────────────────
+html {
+  background-color: transparent;
+  overflow: initial;
+  color-scheme: normal;
+}
+
+body {
+  font-family: var(--ftr10-body-font, 'Victor Mono', monospace);
+  font-size: 16px;
+  line-height: 1.65;
+  color: @fg;
+  background-color: transparent;
+  background-image: var(--ftr10-bg-pattern);
+  background-size: var(--ftr10-bg-pattern-size);
+  background-position: var(--ftr10-bg-pattern-pos, 0 0);
+  overflow: initial;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  position: relative;
+
+  // Base pseudo-elements: empty, overridden per-theme below
+  &::before { content: ''; display: none; }
+  &::after  { content: ''; display: none; }
+
+  // ── First child reset ──────────────────────────────────────────────────────
+  & > :first-child { margin-top: 0; }
+
+  // ── Headings ──────────────────────────────────────────────────────────────
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--ftr10-heading-font, 'Victor Mono', monospace);
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 1.5em;
+    margin-bottom: 0.6em;
+    letter-spacing: var(--ftr10-heading-spacing, 0.5px);
+    text-transform: var(--ftr10-heading-transform, none);
+    position: relative;
+  }
+
+  h1 {
+    font-size: 1.5em;
+    color: var(--ftr10-h1-color, var(--ftr10-text));
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--ftr10-border);
+    margin-bottom: 0.75em;
+  }
+
+  h2 {
+    font-size: 1.35em;
+    color: var(--ftr10-h2-color, var(--ftr10-text));
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid var(--ftr10-border);
+  }
+
+  h3 {
+    font-size: 1.48em;
+    color: var(--ftr10-accent-1);
+  }
+
+  h4 {
+    font-size: 1.24em;
+    color: var(--ftr10-accent-2);
+  }
+
+  h5 {
+    font-size: 1.08em;
+    color: var(--ftr10-accent-3);
+  }
+
+  h6 {
+    font-size: 0.96em;
+    color: var(--ftr10-text-muted);
+  }
+
+  // ── Text emphasis ──────────────────────────────────────────────────────────
+  strong {
+    color: var(--ftr10-strong-color);
+  }
+
+  em {
+    color: var(--ftr10-em-color);
+    font-style: italic;
+  }
+
+  del {
+    color: @fg-subtle;
+    text-decoration-color: color-mix(in srgb, var(--ftr10-warning) 60%, transparent);
+  }
+
+  mark {
+    background: var(--ftr10-mark-bg);
+    color: var(--ftr10-mark-color);
+    border-radius: 4px;
+    padding: 1px 5px;
+    border: 1px solid var(--ftr10-text-15);
+  }
+
+  // ── Links ──────────────────────────────────────────────────────────────────
+  a:not([href]) {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a {
+    color: var(--ftr10-accent-1);
+    text-decoration: none;
+    border-bottom-width: 1px;
+    border-bottom-style: var(--ftr10-link-style);
+    border-bottom-color: var(--ftr10-border);
+    transition: color 0.25s ease, border-color 0.25s ease, text-shadow 0.25s ease, transform 0.2s ease;
+
+    &:hover {
+      color: var(--ftr10-accent-2);
+      border-bottom-color: var(--ftr10-accent-2);
+      text-shadow: var(--ftr10-link-hover-shadow, none);
+      transform: var(--ftr10-link-hover-transform, none);
+    }
+  }
+
+  // ── Images ────────────────────────────────────────────────────────────────
+  img {
+    max-width: 100%;
+    border-radius: var(--ftr10-radius-img);
+    box-shadow:
+      0 8px 28px rgba(0, 0, 0, 0.55),
+      0 0 0 1px var(--ftr10-border);
+    transition: box-shadow 0.3s ease;
+
+    &:hover {
+      box-shadow:
+        0 12px 44px rgba(0, 0, 0, 0.65),
+        0 0 0 1px var(--ftr10-accent-1);
+    }
+  }
+
+  // ── Paragraphs ────────────────────────────────────────────────────────────
+  & > p {
+    margin-top: 0;
+    margin-bottom: 16px;
+    word-wrap: break-word;
+  }
+
+  // ── Lists ─────────────────────────────────────────────────────────────────
+  & > ul, & > ol {
+    margin-bottom: 16px;
+  }
+
+  ul, ol {
+    padding-left: 2em;
+
+    &.no-list {
+      padding: 0;
+      list-style-type: none;
+    }
+  }
+
+  ul ul, ul ol, ol ol, ol ul {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  li {
+    margin-bottom: 0.25em;
+    color: @fg;
+
+    &.task-list-item { list-style: none; }
+  }
+
+  li > p { margin-top: 0; margin-bottom: 0; }
+
+  ul > li::marker { color: var(--ftr10-accent-1); }
+
+  ol > li::marker {
+    color: var(--ftr10-accent-2);
+    font-size: 0.88em;
+  }
+
+  .task-list-item-checkbox {
+    margin: 0 0.2em 0.25em -1.8em;
+    vertical-align: middle;
+    accent-color: var(--ftr10-accent-1);
+
+    &:hover { cursor: pointer; }
+  }
+
+  // ── Blockquotes ───────────────────────────────────────────────────────────
+  blockquote {
+    margin: 16px 0;
+    padding: 18px 22px;
+    background: var(--ftr10-blockquote-bg);
+    border: none;
+    border-left-width: var(--ftr10-blockquote-width);
+    border-left-style: var(--ftr10-border-style, solid);
+    border-left-color: var(--ftr10-blockquote-border);
+    border-radius: 0 var(--ftr10-radius-quote) var(--ftr10-radius-quote) 0;
+    color: @fg-subtle;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+
+    > :first-child { margin-top: 0; }
+    > :last-child  { margin-bottom: 0; }
+  }
+
+  // ── Horizontal rule ───────────────────────────────────────────────────────
+  hr {
+    height: 1px;
+    border: none;
+    background: linear-gradient(90deg, transparent, @neon-blue, @neon-purple, @neon-pink, transparent);
+    margin: 30px 0;
+    opacity: 0.55;
+  }
+
+  // ── Inline code ───────────────────────────────────────────────────────────
+  code {
+    font-family: var(--ftr10-code-font, 'Victor Mono', monospace);
+    font-size: 0.88em;
+    padding: 2px 8px;
+    border-radius: var(--ftr10-radius-inline);
+    background: var(--ftr10-code-bg);
+    color: var(--ftr10-accent-1);
+    border-width: 1px;
+    border-style: var(--ftr10-border-style, solid);
+    border-color: var(--ftr10-border);
+  }
+
+  // ── Code blocks ───────────────────────────────────────────────────────────
+  pre {
+    font-family: var(--ftr10-code-font, 'Victor Mono', monospace);
+    margin: 18px 0;
+    border-radius: var(--ftr10-radius-block);
+    overflow: hidden;
+    position: relative;
+    display: block;
+    max-width: 100%;
+    // Accent bars on left and right edges
+    border-left: 3px solid var(--ftr10-code-border-l);
+    border-top: 1px solid color-mix(in srgb, var(--ftr10-code-border-l) 20%, transparent);
+    border-right: 3px solid var(--ftr10-code-border-r);
+    border-bottom: 1px solid color-mix(in srgb, var(--ftr10-code-border-r) 20%, transparent);
+    background: var(--ftr10-code-bg) !important;
+    backdrop-filter: blur(12px);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.48),
+      inset 0 0 60px color-mix(in srgb, var(--ftr10-code-border-r) 2%, transparent),
+      -3px 0 18px color-mix(in srgb, var(--ftr10-code-border-l) 14%, transparent),
+      3px 0 18px color-mix(in srgb, var(--ftr10-code-border-r) 14%, transparent);
+
+    // Faint scanline pattern to reinforce the "terminal" feel
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        var(--ftr10-code-scanline, rgba(255,255,255,0.012)) 3px,
+        var(--ftr10-code-scanline, rgba(255,255,255,0.012)) 4px
+      );
+      border-radius: inherit;
+    }
+
+    code {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      color: var(--ftr10-text) !important;
+      font-size: 1em;
+    }
+  }
+
+  // ── Tables ────────────────────────────────────────────────────────────────
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 18px 0;
+    overflow: hidden;
+    border-width: 1px;
+    border-style: var(--ftr10-border-style, solid);
+    border-color: var(--ftr10-border);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.32);
+  }
+
+  thead {
+    background: var(--ftr10-surface);
+
+    th {
+      font-family: var(--ftr10-heading-font, 'Victor Mono', monospace);
+      font-size: 0.82em;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 12px 16px;
+      color: var(--ftr10-accent-1);
+      border-bottom-width: 1px;
+      border-bottom-style: var(--ftr10-border-style, solid);
+      border-bottom-color: var(--ftr10-border);
+      text-align: left;
+    }
+  }
+
+  tbody {
+    tr:hover { background: var(--ftr10-surface-hover); }
+    tr:last-child td { border-bottom: none; }
+
+    td {
+      padding: 9px 16px;
+      border-bottom-width: 1px;
+      border-bottom-style: var(--ftr10-border-style, solid);
+      border-bottom-color: var(--ftr10-border);
+      color: @fg;
+    }
+  }
+
+  // ── Callouts ──────────────────────────────────────────────────────────────
+  .callout {
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    background: var(--ftr10-surface) !important;
+    border: 1px solid var(--ftr10-border) !important;
+    display: block;
+    max-width: 100%;
+  }
+}
+
+// ── Scrollbars ───────────────────────────────────────────────────────────────
+::-webkit-scrollbar            { width: 7px; height: 7px; }
+::-webkit-scrollbar-track      { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--ftr10-accent-1);
+  border-radius: 8px;
+  border: 2px solid var(--ftr10-bg);
+
+  &:hover {
+    background: var(--ftr10-accent-2);
+  }
+}
+
+// ── Topbar / floating UI ──────────────────────────────────────────────────────
+.topbar {
+  background: transparent !important;
+
+  > div {
+    background: var(--ftr10-glass-bg-menu) !important;
+    border: 1px solid var(--ftr10-border) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(18px) !important;
+    margin-top: 6px !important;
+    margin-right: 6px !important;
+
+    > div {
+      color: var(--ftr10-text-muted) !important;
+      transition: color 0.2s ease !important;
+
+      &:hover {
+        color: var(--ftr10-accent-1) !important;
+      }
+    }
+  }
+}
+
+// ── Context menu ─────────────────────────────────────────────────────────────
+.contexify {
+  border: 1px solid var(--ftr10-border) !important;
+  font-size: 11px !important;
+
+  .contexify_separator { opacity: 0.6; }
+}
+
+.contexify_item:not(.contexify_item-disabled):hover > .contexify_itemContent,
+.contexify_item:not(.contexify_item-disabled):focus > .contexify_itemContent {
+  color: var(--ftr10-accent-1) !important;
+  background-color: var(--ftr10-surface) !important;
+  border-radius: 10px !important;
+}
+
+// ── Syntax highlight ──────────────────────────────────────────────────────────
+.markdown-preview {
+  .token.keyword    { color: var(--ftr10-token-keyword) !important; }
+  .token.string     { color: var(--ftr10-token-string) !important; }
+  .token.number     { color: var(--ftr10-token-number) !important; }
+  .token.comment    { color: var(--ftr10-token-comment) !important; font-style: italic; }
+  .token.function   { color: var(--ftr10-token-function) !important; }
+  .token.operator   { color: var(--ftr10-token-operator) !important; background: none !important; }
+  .token.punctuation { color: var(--ftr10-token-punctuation) !important; background: none !important; }
+  .token.boolean    { color: var(--ftr10-token-boolean) !important; }
+  .token.variable   { color: var(--ftr10-token-variable) !important; }
+  .token.property   { color: var(--ftr10-token-property) !important; }
+  // JSON: use depth-0 variable to match Code Server's level-0 JSON key color (--ftr10-token-json-0)
+  // Prism cannot differentiate nesting depth, so all JSON keys use the root-level variable
+  .language-json .token.property   { color: var(--ftr10-token-json-0) !important; }
+  .language-json .token.punctuation { color: var(--ftr10-token-punctuation) !important; background: none !important; }
+  .token.attr-name  { color: var(--ftr10-token-html-attribute) !important; }
+  .token.attr-value { color: var(--ftr10-token-string) !important; }
+  .token.tag        { color: var(--ftr10-token-tag) !important; }
+  .token.selector   { color: var(--ftr10-token-selector) !important; }
+}
+
+// ── Sidebar TOC ───────────────────────────────────────────────────────────────
+.md-sidebar-toc {
+  background: var(--ftr10-glass-bg-menu) !important;
+  border-left: 1px solid var(--ftr10-border) !important;
+  backdrop-filter: blur(18px) !important;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5) !important;
+
+  a {
+    color: var(--ftr10-text-muted) !important;
+    border-bottom: none !important;
+    transition: color 0.2s ease !important;
+
+    &:hover { color: var(--ftr10-accent-1) !important; }
+  }
+
+  .md-toc-link.highlighted a {
+    color: var(--ftr10-accent-1) !important;
+    font-weight: 700 !important;
+  }
+}
+
+// ── Collapse buttons ──────────────────────────────────────────────────────────
+.md-collapse-btn {
+  color: var(--ftr10-border) !important;
+
+  &:hover { color: var(--ftr10-accent-1) !important; }
+  &::before { color: var(--ftr10-accent-1) !important; }
+}
+
+// ── FAB menu ──────────────────────────────────────────────────────────────────
+.gooey-item,
+.gooey-toggle {
+  color: var(--ftr10-accent-1) !important;
+
+  &:hover {
+    background: var(--ftr10-accent-1) !important;
+    color: var(--ftr10-bg) !important;
+  }
+}
+
+// ── Footer bar ────────────────────────────────────────────────────────────────
+.footer > div {
+  background: var(--ftr10-glass-bg-menu) !important;
+  border-top: 1px solid var(--ftr10-border) !important;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(24px) !important;
+  color: var(--ftr10-text-muted) !important;
+}
+
+:root
+ {
+  background: transparent !important;
+}
