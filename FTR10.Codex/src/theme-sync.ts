@@ -2596,7 +2596,7 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
         .slice(0, 20)
         .map(f => ({ name: f, dataUri: '' }));
     }
-  } catch {}
+  } catch (e) { console.error('FTR10: Failed to read background images for Architect panel:', e); }
   // sections: the webview hydration only reads config.sections; sanitizeConfigForWebview
   // would deep-clone the entire ThemeConfig (incl. architectSessions) just for this,
   // so pass sections directly — they contain no sensitive data.
@@ -5248,7 +5248,7 @@ window.addEventListener('resize', () => {
 // postMessages will merge on top of this initial state.
 (function applyInitialData() {
   try {
-    var init = window.__FTR10_INIT__;
+    const init = window.__FTR10_INIT__;
     if (!init || typeof init !== 'object') { return; }
 
     // ── config / vars (mirrors architectConfig handler) ───────────────────
@@ -5262,11 +5262,11 @@ window.addEventListener('resize', () => {
 
     // ── session (mirrors loadSession handler) ─────────────────────────────
     if (init.session) {
-      var s = init.session;
+      const s = init.session;
       if (s.id !== undefined) { currentSessionId = s.id; }
       if (s.name) {
         sessionName = s.name;
-        var ni = document.getElementById('sessionNameInput');
+        const ni = document.getElementById('sessionNameInput');
         if (ni) { ni.value = s.name; }
       }
       if (typeof s.baseHue === 'number') { baseHue = s.baseHue; }
