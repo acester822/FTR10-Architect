@@ -2569,18 +2569,73 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
     { enableScripts: true, retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.file(path.join(process.env.HOME || require('os').homedir(), '.ftr10'))] }
   );
-  CodexPanel.webview.html = getCodexHtml();
+
+  // Gather initial data at panel-creation time and bake it directly into the HTML.
+  // This mirrors the pattern used by getSidebarHtml() and ensures the webview renders
+  // real config/palette data on the very first paint — before any postMessage round-trip.
+  let _initBgImages: { name: string; dataUri: string }[] = [];
+  try {
+    const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+    if (fs.existsSync(bgDir)) {
+      _initBgImages = fs.readdirSync(bgDir)
+        .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, 20)
+        .map(f => ({ name: f, dataUri: '' }));
+    }
+  } catch (e) { console.error('FTR10: Failed to read background images for Architect panel:', e); }
+  // sections: the webview hydration only reads config.sections; sanitizeConfigForWebview
+  // would deep-clone the entire ThemeConfig (incl. architectSessions) just for this,
+  // so pass sections directly — they contain no sensitive data.
+  const _initValues = sanitizeForWebview(themeConfig.values);
+  let _initSession: any = undefined;
+  let _initDerivedValues: Record<string, any> | undefined = undefined;
+  if (sessionId) {
+    const _sess = themeConfig.architectSessions[sessionId];
+    if (_sess) {
+      _initSession = sanitizeSession(_sess);
+      _initDerivedValues = sanitizeForWebview(
+        themeConfig.activePreset === `arch-${sessionId}` ? themeConfig.values : {}
+      );
+    }
+  }
+  CodexPanel.webview.html = getCodexHtml({
+    config: { sections: themeConfig.sections },
+    simpleGroups: SIMPLE_GROUPS,
+    activePreset: themeConfig.activePreset,
+    values: _initValues,
+    bgImages: _initBgImages,
+    session: _initSession,
+    derivedValues: _initDerivedValues
+  });
+
   const _codexRef = CodexPanel;
   CodexPanel.onDidDispose(() => { unregisterLivePanel(_codexRef); CodexPanel = undefined; }, null, context.subscriptions);
   registerLivePanel(CodexPanel);
 
-  if (sessionId) {
-    const session = themeConfig.architectSessions[sessionId];
-    if (session) {
-      const derivedValues = themeConfig.activePreset === `arch-${sessionId}` ? themeConfig.values : undefined;
-      setTimeout(() => CodexPanel?.webview.postMessage({ command: 'loadSession', session, derivedValues }), 300);
-    }
-  }
+  // Safety-net fallback: re-push architectConfig ~350 ms after creation in case the
+  // extension host restarted (retainContextWhenHidden causes the webview to persist
+  // but the in-HTML baked data may be stale after a restart).  This is idempotent —
+  // the webview merges the incoming values on top of what it already has.
+  setTimeout(() => {
+    try {
+      if (!CodexPanel) {return;}
+      let bgImages: { name: string; dataUri: string }[] = [];
+      try {
+        const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+        if (fs.existsSync(bgDir)) {
+          bgImages = fs.readdirSync(bgDir)
+            .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, 20)
+            .map(f => ({ name: f, dataUri: '' }));
+        }
+      } catch {}
+      const safeConfig = sanitizeConfigForWebview(themeConfig);
+      const safeVals = sanitizeForWebview(themeConfig.values);
+      CodexPanel.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: safeVals, bgImages });
+    } catch {}
+  }, 350);
 
   CodexPanel.webview.onDidReceiveMessage((msg: any) => {
     if (msg.command === 'CodexUpdate' && Array.isArray(msg.colors)) {
@@ -2708,7 +2763,20 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   }, undefined, context.subscriptions);
 }
 
-function getCodexHtml(): string {
+function getCodexHtml(initial?: {
+  config: any;
+  simpleGroups: any[];
+  activePreset?: string;
+  values: Record<string, any>;
+  bgImages?: { name: string; dataUri: string }[];
+  session?: any;
+  derivedValues?: Record<string, any>;
+}): string {
+  // Safely serialize initial data for embedding.  Escape </ so the JSON cannot
+  // prematurely close the surrounding <script> tag inside the HTML string.
+  const initJson = initial
+    ? JSON.stringify(initial).replace(/<\//g, '<\\/')
+    : 'null';
   return `<!DOCTYPE html>
 <!-- Codex CONCEPT C — CyberPalette v3 -->
 <!-- Inspired by: cyberpunk hue torus, perspective side-panels, dynamic ambient bg -->
@@ -2717,6 +2785,12 @@ function getCodexHtml(): string {
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Codex — CyberPalette</title>
+<script>
+/* FTR10: initial panel data — baked at creation time so the Architect panel
+   renders with real config/palette on the very first paint, without waiting
+   for the async getConfig → architectConfig postMessage round-trip. */
+window.__FTR10_INIT__ = ${initJson};
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -2728,7 +2802,11 @@ function getCodexHtml(): string {
   body, html {
     height: 100%;
     font-family: 'Share Tech Mono', monospace;
-    background: transparent;
+    /* Explicit dark background: the Architect panel uses a dark cyberpunk aesthetic
+       throughout.  Without this the transparent default inherits the VS Code webview
+       background which can be white/light in light themes, making all dark-colored
+       elements (and the canvas wheel) nearly invisible. */
+    background: #0a0a0f;
     color: #b0d0ff;
     overflow-x: hidden;
   }
@@ -5056,6 +5134,63 @@ window.addEventListener('resize', () => {
   }
   // particles disabled
   // tick();
+})();
+
+// ── hydrate from data baked into HTML at panel creation time ─────────────────
+// Runs synchronously before the first updateUI() so the panel shows real
+// config/session data on the very first paint, without waiting for the async
+// getConfig → architectConfig postMessage round-trip.  This mirrors the logic
+// in the architectConfig and loadSession message handlers — any subsequent
+// postMessages will merge on top of this initial state.
+(function applyInitialData() {
+  try {
+    const init = window.__FTR10_INIT__;
+    if (!init || typeof init !== 'object') { return; }
+
+    // ── config / vars (mirrors architectConfig handler) ───────────────────
+    if (init.config && init.config.sections) { varsState.sections = init.config.sections; }
+    if (init.simpleGroups && init.simpleGroups.length) { varsState.simpleGroups = init.simpleGroups; }
+    if (init.bgImages) { __bgImages = init.bgImages; }
+    if (init.activePreset !== undefined) { activePresetId = init.activePreset || null; }
+    if (init.values && Object.keys(init.values).length) {
+      varsState.values = Object.assign({}, varsState.values, init.values);
+    }
+
+    // ── session (mirrors loadSession handler) ─────────────────────────────
+    if (init.session) {
+      const s = init.session;
+      if (s.id !== undefined) { currentSessionId = s.id; }
+      if (s.name) {
+        sessionName = s.name;
+        const ni = document.getElementById('sessionNameInput');
+        if (ni) { ni.value = s.name; }
+      }
+      if (typeof s.baseHue === 'number') { baseHue = s.baseHue; }
+      if (s.harmony) {
+        harmony = s.harmony;
+        document.querySelectorAll('.hbtn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.harmony === harmony);
+        });
+      }
+      Object.keys(overrides).forEach(function(k) { delete overrides[k]; });
+      if (s.swatchOverrides) { Object.assign(overrides, s.swatchOverrides); }
+      if (s.bgEffect !== undefined) { varsState.values['--ftr10-bg-effect'] = s.bgEffect; }
+      if (s.thpaceEnabled !== undefined) { varsState.values['--ftr10-thpace-enabled'] = s.thpaceEnabled; }
+      if (s.varOverrides) { Object.assign(varsState.values, s.varOverrides); }
+    }
+
+    // derivedValues (live preset values) override varOverrides, same as loadSession
+    if (init.derivedValues && Object.keys(init.derivedValues).length) {
+      Object.assign(varsState.values, init.derivedValues);
+    }
+
+    syncBgToggleState(varsState.values);
+    renderVarsPanel();
+    renderQuickPanels();
+    try { syncBgImageGallery(); } catch(e) { console.error('FTR10: init syncBgImageGallery failed', e); }
+  } catch(e) {
+    console.error('FTR10: init hydration failed', e);
+  }
 })();
 
 // ── init ──────────────────────────────────────────────────────────────────────
