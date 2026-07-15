@@ -33,12 +33,12 @@ interface ArchitectSession {
 function hexToHue(hex: string): number {
   try {
     const h = hex.replace('#','').trim();
-    if (h.length < 6) {return 0;}
+    if (h.length < 6) return 0;
     const r = parseInt(h.slice(0,2),16)/255;
     const g = parseInt(h.slice(2,4),16)/255;
     const b = parseInt(h.slice(4,6),16)/255;
     const max = Math.max(r,g,b), min = Math.min(r,g,b);
-    if (max === min) {return 0;}
+    if (max === min) return 0;
     const d = max - min;
     let hue = 0;
     switch(max){
@@ -50,14 +50,14 @@ function hexToHue(hex: string): number {
   } catch { return 0; }
 }
 function stripAlpha(hexOrCss: string): string {
-  if (!hexOrCss) {return '#000000';}
+  if (!hexOrCss) return '#000000';
   const s = hexOrCss.trim();
   // #RRGGBBAA → #RRGGBB
-  if (/^#[0-9a-fA-F]{8}$/.test(s)) {return s.slice(0,7);}
-  if (/^#[0-9a-fA-F]{6}$/.test(s)) {return s;}
+  if (/^#[0-9a-fA-F]{8}$/.test(s)) return s.slice(0,7);
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s;
   // try to extract hex from color-mix / other
   const m = s.match(/#[0-9a-fA-F]{6,8}/);
-  if (m) {return m[0].slice(0,7);}
+  if (m) return m[0].slice(0,7);
   return '#000000';
 }
 function presetToBaseSession(preset: ThemePreset): ArchitectSession {
@@ -98,7 +98,7 @@ function ensureBaseSessions(): boolean {
   for (let idx = 0; idx < THEME_PRESETS.length; idx++) {
     const preset = THEME_PRESETS[idx];
     const baseId = `base-${preset.id}`;
-    if (themeConfig.architectSessions[baseId]) {continue;}
+    if (themeConfig.architectSessions[baseId]) continue;
     const session = presetToBaseSession(preset);
     // Stagger createdAt so original preset order is preserved (oldest first)
     session.createdAt = Date.now() - (THEME_PRESETS.length - idx) * 10000;
@@ -111,9 +111,9 @@ function ensureBaseSessions(): boolean {
 
 function resetBaseSession(sessionId: string): void {
   const existing = themeConfig.architectSessions[sessionId];
-  if (!existing?.isBase || !existing.basePresetId) {return;}
+  if (!existing?.isBase || !existing.basePresetId) return;
   const preset = THEME_PRESETS.find(p => p.id === existing.basePresetId);
-  if (!preset) {return;}
+  if (!preset) return;
   const fresh = presetToBaseSession(preset);
   // Preserve id and isBase flags but reset content to factory
   fresh.createdAt = existing.createdAt;
@@ -303,10 +303,10 @@ function _commentColorFromAccent(hexAccent: string): string {
   const d = max - min;
   let h = 0;
   if (d > 0) {
-    if (max === rn) {h = 60*(((gn-bn)/d)%6);}
-    else if (max === gn) {h = 60*(((bn-rn)/d)+2);}
-    else {h = 60*(((rn-gn)/d)+4);}
-    if (h < 0) {h += 360;}
+    if (max === rn) h = 60*(((gn-bn)/d)%6);
+    else if (max === gn) h = 60*(((bn-rn)/d)+2);
+    else h = 60*(((rn-gn)/d)+4);
+    if (h < 0) h += 360;
   }
   // Muted: low saturation, mid lightness
   const s = 28, l = 52;
@@ -359,12 +359,7 @@ export function deriveCodexPreset(session: ArchitectSession): ThemePreset {
       // ── Tier 1: Backgrounds ───────────────────────────────────
       '--ftr10-bg-effect': session.bgEffect || 'nebula',
       '--ftr10-thpace-enabled': session.thpaceEnabled || 'true',
-      // NOTE: Do NOT set '--ftr10-bg' here. getDefaultBgMode() treats the mere
-      // presence of '--ftr10-bg' in preset.overrides as a signal that the preset
-      // wants 'solid' background mode. Architect sessions are effects-mode by
-      // default (transparent bg + Thpace), so setting this key — even to the
-      // transparent effects value — incorrectly forced every derived preset into
-      // 'solid' mode, killing the ambient background/Thpace effects on Apply.
+      '--ftr10-bg': '#00000000',
       '--ftr10-bg-editor': '#020408ff',
       '--ftr10-bg-ambient': bgAmbient,
       // ── Tier 1: Text ──────────────────────────────────────────
@@ -505,7 +500,7 @@ function computeSessionVarDiff(session: ArchitectSession, liveValues: Record<str
   const derived = deriveCodexPreset(session).overrides;
   const diff: Record<string, string> = {};
   for (const [key, val] of Object.entries(liveValues || {})) {
-    if (typeof val !== 'string') {continue;}
+    if (typeof val !== 'string') continue;
     if (key.startsWith('--ftr10-') && derived[key] !== val) {
       diff[key] = val;
     }
@@ -846,12 +841,12 @@ let CodexPanel: vscode.WebviewPanel | undefined;
 // iterates this so a live color edit reaches whichever panel the user is in.
 const livePanels: vscode.WebviewPanel[] = [];
 function registerLivePanel(p: vscode.WebviewPanel | undefined): void {
-  if (!p) {return;}
-  if (livePanels.indexOf(p) === -1) {livePanels.push(p);}
+  if (!p) return;
+  if (livePanels.indexOf(p) === -1) livePanels.push(p);
 }
 function unregisterLivePanel(p: vscode.WebviewPanel | undefined): void {
   const i = p ? livePanels.indexOf(p) : -1;
-  if (i !== -1) {livePanels.splice(i, 1);}
+  if (i !== -1) livePanels.splice(i, 1);
 }
 let sidebarProvider: ThemeSidebarProvider | undefined;
 let watcher: chokidar.FSWatcher | undefined;
@@ -878,7 +873,7 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
   } else {
     const raw = JSON.parse(fs.readFileSync(themeJsonPath, 'utf8')) as RawThemeJson;
     themeConfig = flattenConfig(raw);
-    migrateConfig();  // Forward-fills any missing vars from DEFAULT_VALUES
+    migrateConfig();
   }
 
   // Seed Base session cards from static presets (issue #4)
@@ -895,17 +890,16 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
     // Also clean other css files of double semicolons via robust updater
     updateAllCssFiles(themeConfig.values, ['--ftr10-bg-image-panels', '--ftr10-highlight']);
   } catch {}
-  
+
   // Register sidebar webview provider
   sidebarProvider = new ThemeSidebarProvider(context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('themeSync.sidebar', sidebarProvider)
   );
 
-  // Register commands
   const openPanelCmd = vscode.commands.registerCommand('themeSync.openPanel', () => {
-    if (panel) {panel.reveal(vscode.ViewColumn.One);}
-    else {createPanel(context);}
+    if (panel) panel.reveal(vscode.ViewColumn.One);
+    else createPanel(context);
   });
 
   const patchCmd = vscode.commands.registerCommand('themeSync.patchWorkbench', () => patchWorkbench(profilePath));
@@ -930,19 +924,8 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
   });
 
   context.subscriptions.push({ dispose: () => watcher?.close() });
-
-  // Single source of truth: theme.json -> all generated artifacts.
-  // Regenerate colors.css from themeConfig (repair corruption if needed),
-  // then derive vars.json / shim / tokens from themeConfig. colors.css is a
-  // generated output and is NOT fed back upstream.
-  try { regenerateColorsCss(themeConfig.values); } catch {}
   generateShim(profilePath, themeConfig);
   writeVarsJson(profilePath, themeConfig);
-  writeTerminalColors(profilePath, themeConfig.values);
-  try { writeThemeTokenColors(themeConfig.values); } catch (e) { console.error('writeThemeTokenColors failed:', e); }
-  try { writeTokenColors(themeConfig.values); } catch (e) { console.error('writeTokenColors failed:', e); }
-  pushVarsLive(themeConfig.values);
-  updateWebviewUI();
 }
 
 export function deactivateThemeSync(): void {
@@ -1099,7 +1082,7 @@ function replaceCssVarRobust(css: string, key: string, newVal: string): string {
     if (idx === -1) { out += css.slice(cursor); break; }
     // Verify it's a declaration: optional ws, then ':'
     let afterKey = idx + key.length;
-    while (afterKey < css.length && /\s/.test(css[afterKey])) {afterKey++;}
+    while (afterKey < css.length && /\s/.test(css[afterKey])) afterKey++;
     if (afterKey >= css.length || css[afterKey] !== ':') {
       out += css.slice(cursor, idx + key.length);
       cursor = idx + key.length;
@@ -1122,16 +1105,16 @@ function replaceCssVarRobust(css: string, key: string, newVal: string): string {
     while (k < css.length) {
       const ch = css[k];
       if (inSingle) {
-        if (ch === "'" && css[k-1] !== '\\') {inSingle = false;}
+        if (ch === "'" && css[k-1] !== '\\') inSingle = false;
       } else if (inDouble) {
-        if (ch === '"' && css[k-1] !== '\\') {inDouble = false;}
+        if (ch === '"' && css[k-1] !== '\\') inDouble = false;
       } else {
-        if (ch === "'") {inSingle = true;}
-        else if (ch === '"') {inDouble = true;}
-        else if (ch === '(') {depth++;}
-        else if (ch === ')') { if (depth>0) {depth--;} }
-        else if (ch === ';' && depth === 0) {break;}
-        else if (ch === '}' && depth === 0) {break;}
+        if (ch === "'") inSingle = true;
+        else if (ch === '"') inDouble = true;
+        else if (ch === '(') depth++;
+        else if (ch === ')') { if (depth>0) depth--; }
+        else if (ch === ';' && depth === 0) break;
+        else if (ch === '}' && depth === 0) break;
       }
       k++;
     }
@@ -1141,7 +1124,7 @@ function replaceCssVarRobust(css: string, key: string, newVal: string): string {
       out += ';';
       let next = k + 1;
       // consume extra consecutive semicolons (fixes previous ;; corruption)
-      while (next < css.length && css[next] === ';') {next++;}
+      while (next < css.length && css[next] === ';') next++;
       cursor = next;
     } else {
       cursor = k;
@@ -1150,106 +1133,29 @@ function replaceCssVarRobust(css: string, key: string, newVal: string): string {
   return out;
 }
 
-// ── Colors.css canonical helpers ─────────────────────────────────────────
-function normalizeToCssFileValue(k: string, v: string): string {
-  if ((k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') && typeof v === 'string') {
-    const m = v.match(/url\(["']?backgrounds\/([^"')]+)["']?\)/i);
-    if (m) {return 'url("../backgrounds/' + m[1] + '")';}
-    // also handle already-../ case keep as is
-    const m2 = v.match(/url\(["']?\.\.\/backgrounds\/([^"')]+)["']?\)/i);
-    if (m2) {return 'url("../backgrounds/' + m2[1] + '")';}
-  }
-  return v;
-}
-function normalizeFromCssFileValue(k: string, v: string): string {
-  if ((k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') && typeof v === 'string') {
-    const m = v.match(/url\(["']?\.\.\/backgrounds\/([^"')]+)["']?\)/i);
-    if (m) {return 'url("backgrounds/' + m[1] + '")';}
-  }
-  return v;
-}
-function parseColorsCssFile(): Record<string, string> {
-  const cssPath = path.join(profilePath, 'css.files', 'colors.css');
-  try {
-    const content = fs.readFileSync(cssPath, 'utf8');
-    const values: Record<string, string> = {};
-    const re = /(--ftr10-[\w-]+)\s*:\s*([^;]+);/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(content)) !== null) {
-      const key = m[1].trim();
-      let val = m[2].trim();
-      val = normalizeFromCssFileValue(key, val);
-      values[key] = val;
-    }
-    return values;
-  } catch { return {}; }
-}
 function regenerateColorsCss(values: Record<string, string>): void {
   const cssPath = path.join(profilePath, 'css.files', 'colors.css');
+  // Generate clean :root block — this fixes previous corruption (double ;; and background: prefix)
   const header = `/* FTR10 Codex — Token Definitions (auto-generated, do not edit manually — use Theme Editor) */\n:root {\n`;
   const lines = Object.entries(values)
     .filter(([k]) => k.startsWith('--ftr10-'))
     .sort(([a],[b]) => a.localeCompare(b))
-    .map(([k,v]) => {
-      const out = normalizeToCssFileValue(k, v);
-      return `  ${k}: ${out};`;
-    });
+    .map(([k,v]) => `  ${k}: ${v};`);
   const content = header + lines.join('\n') + '\n}\n';
   try {
     const existing = fs.existsSync(cssPath) ? fs.readFileSync(cssPath,'utf8') : '';
-    if (existing !== content) {fs.writeFileSync(cssPath, content);}
+    if (existing !== content) fs.writeFileSync(cssPath, content);
   } catch { fs.writeFileSync(cssPath, content); }
-}
-function syncAllFromColorsCss(): void {
-  // Canonical source: colors.css -> everything else
-  if (_togglingTheme) {return;}
-  let parsed: Record<string, string> = {};
-  try { parsed = parseColorsCssFile(); } catch {}
-  if (Object.keys(parsed).length === 0) {return;}
-  // Merge into themeConfig (colors.css wins)
-  themeConfig.values = { ...themeConfig.values, ...parsed };
-  // Write derived artifacts from canonical
-  try {
-    writeVarsJson(profilePath, { ...themeConfig, values: themeConfig.values });
-    generateShim(profilePath, { ...themeConfig, values: themeConfig.values });
-    writeTerminalColors(profilePath, themeConfig.values);
-    writeThemeTokenColors(themeConfig.values);
-    writeTokenColors(themeConfig.values);
-  } catch(e) { console.error('syncAllFromColorsCss failed', e); }
-  pushVarsLive(themeConfig.values);
-  updateWebviewUI();
-  try { if (CodexPanel) { CodexPanel.webview.postMessage({ command: 'syncVars', values: themeConfig.values }); } } catch {}
-  // Preserve in-memory sessions/sections
-  try {
-    const themeJsonPath = path.join(profilePath, 'theme.json');
-    fs.writeFileSync(themeJsonPath, JSON.stringify({
-      ftr10Variables: { sections: themeConfig.sections, values: themeConfig.values },
-      cssImports: themeConfig.cssImports,
-      customCss: themeConfig.customCss,
-      activePreset: themeConfig.activePreset,
-      presetCustomizations: themeConfig.presetCustomizations,
-      presetBackgroundMode: themeConfig.presetBackgroundMode,
-      architectSessions: themeConfig.architectSessions,
-      lastModified: Date.now()
-    }, null, 2));
-  } catch {}
-}
-function updateColorsCssWithValues(newVals: Record<string, string>): void {
-  const current = parseColorsCssFile();
-  const merged = { ...current, ...newVals };
-  regenerateColorsCss(merged);
-  // Immediately sync derived files from the new canonical
-  syncAllFromColorsCss();
 }
 
 function updateAllCssFiles(values: Record<string, string>, changedKeys?: string[]): void {
   const cssDir = path.join(profilePath, 'css.files');
-  if (!fs.existsSync(cssDir)) {return;}
+  if (!fs.existsSync(cssDir)) return;
   // colors.css is fully regenerated for cleanliness
   regenerateColorsCss(values);
 
   const keysToUpdate = changedKeys && changedKeys.length ? changedKeys : Object.keys(values).filter(k=>k.startsWith('--ftr10-'));
-  if (keysToUpdate.length===0) {return;}
+  if (keysToUpdate.length===0) return;
   let files: string[] = [];
   try { files = fs.readdirSync(cssDir).filter(f=>f.endsWith('.css') && f!=='colors.css'); } catch { return; }
   for (const file of files) {
@@ -1259,17 +1165,12 @@ function updateAllCssFiles(values: Record<string, string>, changedKeys?: string[
       let changed = false;
       let newCss = css;
       for (const key of keysToUpdate) {
-        if (!newCss.includes(key)) {continue;}
+        if (!newCss.includes(key)) continue;
         const before = newCss;
-        let v = values[key];
-        if ((key === '--ftr10-bg-image' || key === '--ftr10-bg-image-panels') && typeof v === 'string') {
-          const m = v.match(/url\(["']?backgrounds\/([^"')]+)["']?\)/i);
-          if (m) {v = 'url("../backgrounds/' + m[1] + '")';}
-        }
-        newCss = replaceCssVarRobust(newCss, key, v);
-        if (before !== newCss) {changed = true;}
+        newCss = replaceCssVarRobust(newCss, key, values[key]);
+        if (before !== newCss) changed = true;
       }
-      if (changed && newCss !== css) {fs.writeFileSync(fp, newCss);}
+      if (changed && newCss !== css) fs.writeFileSync(fp, newCss);
     } catch {}
   }
 }
@@ -1284,7 +1185,7 @@ function writeColorsCss(values: Record<string, string>, changedKeys?: string[]):
 // Everything else defaults to 'effects' (transparent bg + Thpace active).
 function getDefaultBgMode(presetId: string): 'effects' | 'solid' {
   const preset = THEME_PRESETS.find(p => p.id === presetId);
-  if (!preset) {return 'effects';}
+  if (!preset) return 'effects';
   return '--ftr10-bg' in preset.overrides ? 'solid' : 'effects';
 }
 
@@ -1299,7 +1200,7 @@ function getBasePresetValues(presetId: string): Record<string, string> {
 
 function applyPreset(presetId: string): void {
   const preset = THEME_PRESETS.find(p => p.id === presetId);
-  if (!preset) {return;}
+  if (!preset) return;
 
   const baseValues = getBasePresetValues(presetId);
   const userCustomizations = themeConfig.presetCustomizations[presetId] || {};
@@ -1479,7 +1380,7 @@ function handleMessage(msg: any): void {
 
   if (msg.command === 'toggleBackgroundMode') {
     const presetId: string = msg.presetId || themeConfig.activePreset || '';
-    if (!presetId) {return;}
+    if (!presetId) return;
     const current = getPresetBgMode(presetId);
     const next: 'effects' | 'solid' = current === 'effects' ? 'solid' : 'effects';
     themeConfig.presetBackgroundMode[presetId] = next;
@@ -1526,7 +1427,7 @@ function handleMessage(msg: any): void {
     // compute changed keys for surgical CSS update (major lag fix + data URI support)
     const changedKeys: string[] = [];
     for (const k of Object.keys(newValues)) {
-      if (prevValues[k] !== newValues[k]) {changedKeys.push(k);}
+      if (prevValues[k] !== newValues[k]) changedKeys.push(k);
     }
     try {
       persistThemeConfig({ fast: true, changedKeys });
@@ -1594,7 +1495,7 @@ function handleMessage(msg: any): void {
       themeConfig.activePreset = fresh.activePreset;
     }
     persistThemeConfig();
-    if (panel) {panel.webview.html = getEditorHtml(themeConfig);}
+    if (panel) panel.webview.html = getEditorHtml(themeConfig);
     sidebarProvider?.syncActivePreset();
     const presetName = THEME_PRESETS.find(p => p.id === presetId)?.name || 'defaults';
     vscode.window.showInformationMessage(`Theme reset to ${presetName} defaults.`);
@@ -1612,59 +1513,60 @@ function handleMessage(msg: any): void {
 // ═══════════════════════════════════════════════════════════════════
 
 function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string[] }): void {
-  if (_togglingTheme) {return;}
-  // Sanitize
+  if (_togglingTheme) return;
+  const isFast = !!opts?.fast;
+  // Sanitize values: any background image expressed as a relative path or
+  // file:// URL resolves against the workbench's CDN origin (vscode-cdn.net)
+  // which cannot reach the local disk → ERR_NAME_NOT_RESOLVED. Such values can
+  // only ever come from a pre-fix saved state; force them to 'none' so we never
+  // re-emit a dead URL. (Live gallery selections are now data: URIs, which are fine.)
   const values: Record<string, string> = {};
   for (const [k, v] of Object.entries(themeConfig.values)) {
     let val = String(v);
     if (k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') {
-      if (/^\s*url\(["']?\s*file:\/\//i.test(val)) {val = 'none';}
-      if (val.length > 100000 && val.includes('data:')) {
-        const bgDir = path.join(profilePath, 'backgrounds');
-        try {
-          const first = fs.readdirSync(bgDir).filter(f=>/\.(png|jpe?g|gif|webp|svg)$/i.test(f)).sort()[0];
-          if (first) {val = 'url("backgrounds/' + first + '")';}
-          else {val = 'none';}
-        } catch { val = 'none'; }
-      }
+      if (/^\s*url\(["']?\s*(\.\.\/|file:\/\/)/i.test(val)) val = 'none';
     }
     values[k] = val;
   }
-  themeConfig.values = values;
-
-  // Single source of truth: theme.json (themeConfig) -> all generated artifacts.
-  // colors.css is a generated output, NOT fed back upstream.
-  try { regenerateColorsCss(values); } catch(e){ console.error('regenerateColorsCss failed', e); }
-  if (opts?.changedKeys) {
-    try { updateAllCssFiles(values, opts.changedKeys); } catch {}
-  } else {
-    try { updateAllCssFiles(values); } catch {}
+  const themeJsonPath = path.join(profilePath, 'theme.json');
+  fs.writeFileSync(themeJsonPath, JSON.stringify({
+    ftr10Variables: { sections: themeConfig.sections, values },
+    cssImports: themeConfig.cssImports,
+    customCss: themeConfig.customCss,
+    activePreset: themeConfig.activePreset,
+    presetCustomizations: themeConfig.presetCustomizations,
+    presetBackgroundMode: themeConfig.presetBackgroundMode,
+    architectSessions: themeConfig.architectSessions,
+    lastModified: Date.now()
+  }, null, 2));
+  // Fast path: only update css files, vars.json, shim.js and live relay — skip heavy token writes
+  if (isFast) {
+    writeColorsCss(values, opts?.changedKeys);
+    writeVarsJson(profilePath, { ...themeConfig, values });
+    generateShim(profilePath, { ...themeConfig, values });
+    pushVarsLive(values);
+    // still update editor webview UI but not full sync
+    updateWebviewUI();
+    return;
   }
-  try { writeVarsJson(profilePath, { ...themeConfig, values }); } catch(e){ console.error('writeVarsJson failed', e); }
-  try { generateShim(profilePath, { ...themeConfig, values }); } catch(e){ console.error('generateShim failed', e); }
-  try { writeTerminalColors(profilePath, values); } catch {}
-  try { writeThemeTokenColors(values); } catch(e){ console.error('writeThemeTokenColors failed', e); }
-  try { writeTokenColors(values); } catch(e){ console.error('writeTokenColors failed', e); }
-  try { pushVarsLive(values); } catch {}
-  try { updateWebviewUI(); } catch {}
-  // Sync vars panel after palette finalize (delayed to avoid breaking wheel during drag)
-  if (opts?.fast) {
-    try { setTimeout(() => { try { if (CodexPanel) {CodexPanel.webview.postMessage({ command: 'syncVars', values });} } catch {} }, 150); } catch {}
-  }
-  // Persist theme.json — preserves sessions, sections, preset customizations
+  writeColorsCss(values, opts?.changedKeys);
+  writeVarsJson(profilePath, { ...themeConfig, values });
+  generateShim(profilePath, { ...themeConfig, values });
+  writeTerminalColors(profilePath, themeConfig.values);
+  // VS Code syntax color syncing was previously disabled due to broken highlight behavior.
+  // User requested re-enabling full token synchronization (theme JSON + settings toggle).
   try {
-    const themeJsonPath = path.join(profilePath, 'theme.json');
-    fs.writeFileSync(themeJsonPath, JSON.stringify({
-      ftr10Variables: { sections: themeConfig.sections, values },
-      cssImports: themeConfig.cssImports,
-      customCss: themeConfig.customCss,
-      activePreset: themeConfig.activePreset,
-      presetCustomizations: themeConfig.presetCustomizations,
-      presetBackgroundMode: themeConfig.presetBackgroundMode,
-      architectSessions: themeConfig.architectSessions,
-      lastModified: Date.now()
-    }, null, 2));
-  } catch(e){ console.error('persist theme.json failed', e); }
+    writeThemeTokenColors(themeConfig.values);
+  } catch (e) {
+    console.error('writeThemeTokenColors failed:', e);
+  }
+  try {
+    writeTokenColors(themeConfig.values);
+  } catch (e) {
+    console.error('writeTokenColors failed:', e);
+  }
+  pushVarsLive(themeConfig.values);
+  updateWebviewUI();
 }
 
 function pushVarsLive(values: Record<string, string>): void {
@@ -1693,7 +1595,7 @@ function toHex6(hex: string): string {
 
 /** Resolve a var() chain within the theme values dict, then strip to 6-digit hex. */
 function resolveTokenColor(raw: string, values: Record<string, string>, depth = 0): string {
-  if (!raw || depth > 8) {return raw;}
+  if (!raw || depth > 8) return raw;
   const varRef = raw.trim().match(/^var\(\s*(--[\w-]+)\s*(?:,\s*(.*?))?\s*\)$/);
   if (varRef) {
     const resolved = values[varRef[1]];
@@ -1948,12 +1850,33 @@ function updateWebviewUI(): void {
   if (panel) {
     const bgModeMap: Record<string, string> = {};
     for (const p of THEME_PRESETS) { bgModeMap[p.id] = getPresetBgMode(p.id); }
+    // Background gallery: read image files at <globalConfig>/backgrounds and
+    // ship them as inline base64 data: URIs. The webview is an isolated
+    // origin whose asWebviewUri() resolves to an unreachable CDN in this
+    // code-server setup, so a plain URL 404s (ERR_NAME_NOT_RESOLVED).
+    // data: URIs need no external host and always load.
+    const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
     let bgImages: { name: string; dataUri: string }[] = [];
-    // Strip oversized/data-URI blobs so the sidebar webview message stays under VS Code's cap
-    const safeCfg = sanitizeConfigForWebview(themeConfig);
+    try {
+      if (fs.existsSync(bgDir)) {
+        bgImages = fs.readdirSync(bgDir)
+          .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+          .sort((a, b) => a.localeCompare(b))
+          .map(f => {
+            const mime = /\.svg$/i.test(f) ? 'image/svg+xml'
+              : /\.png$/i.test(f) ? 'image/png'
+              : /\.gif$/i.test(f) ? 'image/gif'
+              : /\.webp$/i.test(f) ? 'image/webp'
+              : /\.avif$/i.test(f) ? 'image/avif'
+              : 'image/jpeg';
+            const b64 = fs.readFileSync(path.join(bgDir, f)).toString('base64');
+            return { name: f, dataUri: 'data:' + mime + ';base64,' + b64 };
+          });
+      }
+    } catch { /* ignore — gallery simply empty */ }
     panel.webview.postMessage({
       command: 'sync',
-      config: safeCfg,
+      config: themeConfig,
       simpleGroups: SIMPLE_GROUPS,
       presets: THEME_PRESETS,
       bgModeMap,
@@ -1979,7 +1902,7 @@ function buildWebviewVarsCss(cfg: ThemeConfig): string {
   let css = Object.keys(vals).length
     ? ':root {\n' + Object.entries(vals).map(([k, v]) => `  ${k}: ${v};`).join('\n') + '\n}\n'
     : '';
-  if (cfg.customCss) {css += '\n' + cfg.customCss + '\n';}
+  if (cfg.customCss) css += '\n' + cfg.customCss + '\n';
   return css;
 }
 
@@ -1988,14 +1911,30 @@ function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
   const shimPath = path.join(profilePathArg, 'shim.js');
   const baseCssFiles = cfg.cssImports?.length ? cfg.cssImports : ['css.files/colors.css', 'css.files/main.css', 'css.files/font_load.css'];
   const cssFiles = baseCssFiles.includes('css.files/effects.css') ? baseCssFiles : [...baseCssFiles, 'css.files/effects.css'];
-  // CLEAN shim — based on 0422 known-good. Uses _VSCODE_FILE_ROOT which code-server sets to
-  // {{WORKBENCH_WEB_BASE_URL}}/out/ at runtime, so __base correctly resolves to the workbench
-  // dir where css.files/, backgrounds/, vars.json are symlinked. No canvas particle code in shim.
   const shim = `(function() {
 var ID = 'theme-sync-live-style';
 var el = document.getElementById(ID);
 if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
-var __base = (typeof globalThis._VSCODE_FILE_ROOT === 'string' ? globalThis._VSCODE_FILE_ROOT + 'vs/code/browser/workbench/' : new URL('./', import.meta.url).href);
+var __base = (function() {
+  // Resolve to the LOCAL workbench origin, never the CDN. code-server serves
+  // the workbench + our symlinked css.files from the real local origin, but the
+  // shim <script> may be loaded via a vscode-cdn.net URL (WORKBENCH_WEB_BASE_URL).
+  // Derive the correct /out/vs/code/browser/workbench/ PATH from the shim's own
+  // <script src>, then serve it from location.origin so css.files is reachable.
+  // This is the fix for the classic "shim broke, no colors" failure where the
+  // CDN base made every __base + 'css.files/...' <link> 404.
+  try {
+    var __scripts = document.querySelectorAll('script[src*="shim.js"]');
+    for (var __i = 0; __i < __scripts.length; __i++) {
+      var __u = new URL(__scripts[__i].src, location.href);
+      var __dir = __u.pathname.replace(/shim\.js$/, '');
+      if (__dir.charAt(__dir.length - 1) !== '/') __dir += '/';
+      return location.origin + __dir;
+    }
+  } catch (_) {}
+  try { return new URL('.', location.href).href; } catch (_) {}
+  return '/';
+})();
 var __cssFiles = ${JSON.stringify(cssFiles)};
 __cssFiles.forEach(function(f) {
   var id = 'ftr10-' + f.replace(/[^a-zA-Z0-9]/g, '');
@@ -2036,28 +1975,82 @@ if (!document.getElementById(__customId)) {
 }
 
 var __defaultVars = ${JSON.stringify(cfg.values)};
+var __nebulaCanvas = null, __nebulaRaf = null;
+function __startNebulaParticles() {
+  if (__nebulaCanvas && __nebulaCanvas.isConnected) return;
+  var cv = document.createElement('canvas');
+  cv.id = 'ftr10-nebula-particles';
+  cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:3;pointer-events:none;';
+  document.body.appendChild(cv);
+  __nebulaCanvas = cv;
+  var ctx = cv.getContext('2d');
+  function resize() { cv.width = window.innerWidth; cv.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  var COUNT = 55, TWO_PI = Math.PI * 2;
+  var pts = Array.from({length: COUNT}, function() {
+    return {
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      size: Math.random() * 3 + 1.2,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.2 - 0.06,
+      alpha: Math.random() * 0.45 + 0.25,
+      da: (Math.random() - 0.5) * 0.003,
+      twinkle: Math.random() * TWO_PI,
+      colIdx: Math.floor(Math.random() * 3)
+    };
+  });
+  function getCol(idx) {
+    var cs = getComputedStyle(document.documentElement);
+    var key = idx === 0 ? '--ftr10-accent-1' : idx === 1 ? '--ftr10-accent-2' : '--ftr10-accent-3';
+    var v = cs.getPropertyValue(key).trim().slice(0, 7);
+    return v || ['#00d4ff','#9b59b6','#3498db'][idx];
+  }
+  function tick() {
+    if (!__nebulaCanvas) return;
+    var w = cv.width, h = cv.height;
+    ctx.clearRect(0, 0, w, h);
+    pts.forEach(function(p) {
+      p.twinkle += 0.02;
+      p.alpha += p.da;
+      if (p.alpha > 0.7 || p.alpha < 0.08) p.da *= -1;
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -10) { p.y = h + 5; p.x = Math.random() * w; }
+      if (p.x < -10) p.x = w + 5;
+      if (p.x > w + 10) p.x = -5;
+      var col = getCol(p.colIdx);
+      var pulse = 0.5 + 0.5 * Math.sin(p.twinkle);
+      ctx.save();
+      ctx.globalAlpha = p.alpha * pulse;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size / 2, 0, TWO_PI);
+      ctx.fillStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = p.size * 5;
+      ctx.fill();
+      ctx.restore();
+    });
+    __nebulaRaf = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function __stopNebulaParticles() {
+  if (__nebulaRaf) { cancelAnimationFrame(__nebulaRaf); __nebulaRaf = null; }
+  if (__nebulaCanvas && __nebulaCanvas.isConnected) __nebulaCanvas.remove();
+  __nebulaCanvas = null;
+}
 function __applyEffect(vals) {
   if (!document.body) { document.addEventListener('DOMContentLoaded', function() { __applyEffect(vals); }); return; }
   var effect = ((vals && vals['--ftr10-bg-effect']) || 'none').trim().toLowerCase();
-  document.body.className = (document.body.className || '').replace(/\\bftr10-effect--\\S+/g, '').trim();
+  document.body.className = (document.body.className || '').replace(/\bftr10-effect--\S+/g, '').trim();
   if (effect !== 'none') document.body.classList.add('ftr10-effect--' + effect);
-  var oldLayer = document.getElementById('ftr10-effect-layer');
-  if (oldLayer) oldLayer.remove();
+  if (effect === 'nebula') { __startNebulaParticles(); } else { __stopNebulaParticles(); }
 }
 var applyVars = function(vars) {
-  // Resolve tiny url("backgrounds/file") to absolute __base + backgrounds/file so injected style works
-  // and we avoid storing 1MB data URIs in vars.json (polling lag fix)
-  var resolved = {};
-  for (var k in vars) {
-    var v = vars[k];
-    if ((k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') && typeof v === 'string') {
-      var bm = v.match(/url\\(["']?backgrounds\\/([^"')]+)["']?\\)/i) || v.match(/url\\(["']?\\.\\.\\/backgrounds\\/([^"')]+)["']?\\)/i);
-      if (bm) v = 'url("' + __base + 'backgrounds/' + (bm[1] || bm[2] || '') + '")';
-    }
-    resolved[k] = v;
-  }
-  el.textContent = ':root {\\n' + Object.entries(resolved).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join('\\n') + '\\n}';
-  __applyEffect(resolved);
+  el.textContent = ':root {\\n' + Object.entries(vars).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join('\\n') + '\\n}';
+  __applyEffect(vars);
+  // Immediately enable/disable Thpace canvas based on the var (if API is ready)
   if (window.ftr10Thpace) {
     var thpaceOn = (vars['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
     thpaceOn ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
@@ -2066,14 +2059,43 @@ var applyVars = function(vars) {
 applyVars(__defaultVars);
 
 // Poll vars.json for live updates from the extension host.
-// __base uses _VSCODE_FILE_ROOT which maps to {{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/
-// where vars.json is symlinked — no need for candidate bases fallback.
+// Adaptive scheduling: burst mode (1.5 s) for 8 s after a change is detected,
+// idle mode (30 s) otherwise — avoids unnecessary fetches when nothing is changing.
+// __base (defined at top of shim) may resolve to CDN in some setups, so we try several
+// candidate base URLs and use the first that returns JSON.
+var __candidateBases = (function() {
+  var bases = [];
+  try { bases.push(__base); } catch (_) {}
+  try { bases.push(new URL('./', import.meta.url).href); } catch (_) {}
+  try {
+    // Derive the workbench dir from the script's own location (shim.js lives
+    // in <workbench>/shim.js, and vars.json is symlinked next to it).
+    bases.push(new URL('vars.json', location.href).href.replace(/vars\.json$/, ''));
+  } catch (_) {}
+  try {
+    // Fallback: same-origin out/.../workbench path.
+    var m = location.href.match(/(.*\/out\/vs\/code\/browser\/workbench\/)/);
+    if (m) bases.push(m[1]);
+  } catch (_) {}
+  // de-dup
+  return bases.filter(function(b, i) { return bases.indexOf(b) === i; });
+})();
 var __lastMod = 0;
 var __pollTimer = null;
 var __burstUntil = 0;
+function __fetchVars() {
+  // Try each candidate base until one returns valid JSON.
+  var tries = __candidateBases.slice();
+  function attempt(i) {
+    if (i >= tries.length) return Promise.reject(new Error('no base'));
+    return fetch(tries[i] + 'vars.json?t=' + Date.now())
+      .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .catch(function() { return attempt(i + 1); });
+  }
+  return attempt(0);
+}
 function __pollVars() {
-  fetch(__base + 'vars.json?t=' + Date.now())
-    .then(function(r) { return r.json(); })
+  __fetchVars()
     .then(function(data) {
       if (data && data.lastModified && data.lastModified !== __lastMod) {
         __lastMod = data.lastModified;
@@ -2088,6 +2110,7 @@ function __pollVars() {
 }
 __pollTimer = setTimeout(__pollVars, 1000);
 
+// Also keep BroadcastChannel + postMessage as fallbacks
 try {
   var __ch = new BroadcastChannel('theme-sync');
   __ch.onmessage = function(e) {
@@ -2128,7 +2151,7 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
       writeVarsJson(profilePathArg, themeConfig);
     }
     try {
-      if (fs.existsSync(varsLinkPath)) {fs.unlinkSync(varsLinkPath);}
+      if (fs.existsSync(varsLinkPath)) fs.unlinkSync(varsLinkPath);
     } catch (_e) { /* ignore */ }
     fs.symlinkSync(varsSrcPath, varsLinkPath);
 
@@ -2138,7 +2161,7 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
     const bgDirSrc = path.join(profilePathArg, 'backgrounds');
     const bgDirLink = path.join(workbenchDir, 'backgrounds');
     if (fs.existsSync(bgDirSrc)) {
-      try { if (fs.existsSync(bgDirLink)) {fs.unlinkSync(bgDirLink);} } catch (_e) { /* ignore */ }
+      try { if (fs.existsSync(bgDirLink)) fs.unlinkSync(bgDirLink); } catch (_e) { /* ignore */ }
       try { fs.symlinkSync(bgDirSrc, bgDirLink); } catch (_e) { /* ignore */ }
     }
 
@@ -2181,8 +2204,8 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
     // Ensure symlink for css.files dir exists (workbench needs to serve css files)
     const cssDirSrc = path.join(profilePathArg, 'css.files');
     const cssDirLink = path.join(workbenchDir, 'css.files');
-    try { if (fs.existsSync(cssDirLink)) {fs.unlinkSync(cssDirLink);} } catch {}
-    try { if (fs.existsSync(cssDirSrc)) {fs.symlinkSync(cssDirSrc, cssDirLink);} } catch {}
+    try { if (fs.existsSync(cssDirLink)) fs.unlinkSync(cssDirLink); } catch {}
+    try { if (fs.existsSync(cssDirSrc)) fs.symlinkSync(cssDirSrc, cssDirLink); } catch {}
     vscode.window.showInformationMessage('Workbench patched with shim.js');
   } catch (err: any) {
     vscode.window.showErrorMessage(`Failed to patch workbench: ${err?.message || err}`);
@@ -2198,8 +2221,8 @@ function buildSessionCardsHtml(activePreset?: string): string {
     .sort((a, b) => {
       // Base cards first, ordered by preset list, then user cards by updatedAt desc
       const aIsBase = !!a.isBase; const bIsBase = !!b.isBase;
-      if (aIsBase && !bIsBase) {return -1;}
-      if (!aIsBase && bIsBase) {return 1;}
+      if (aIsBase && !bIsBase) return -1;
+      if (!aIsBase && bIsBase) return 1;
       if (aIsBase && bIsBase) {
         // preserve original preset order via createdAt (earlier created = earlier in list)
         return (a.createdAt ?? 0) - (b.createdAt ?? 0);
@@ -2516,7 +2539,7 @@ function getSidebarHtml(activePreset?: string, accentColor?: string): string {
 
 function applyArchitectSession(sessionId: string): void {
   const session = themeConfig.architectSessions[sessionId];
-  if (!session) {return;}
+  if (!session) return;
   const preset = deriveCodexPreset(session);
   const existingIdx = THEME_PRESETS.findIndex(p => p.id === preset.id);
   if (existingIdx >= 0) { THEME_PRESETS[existingIdx] = preset; }
@@ -2525,44 +2548,8 @@ function applyArchitectSession(sessionId: string): void {
   sidebarProvider?.syncSessions();
   // If Architect panel is open, switch it to this session
   if (CodexPanel) {
-    CodexPanel.webview.postMessage({ command: 'loadSession', session: sanitizeSession(session), derivedValues: sanitizeForWebview(themeConfig.values) });
+    CodexPanel.webview.postMessage({ command: 'loadSession', session, derivedValues: themeConfig.values });
   }
-}
-
-// SAFETY: webview postMessage is capped (~1MB) by VS Code. A stored data: URI
-// (e.g. a session varOverride embedding a background image) would make the
-// message silently DROPPED -> panel shows "Load config to edit" with no data.
-// Strip oversized/data-URI blobs before posting to any webview.
-function sanitizeForWebview(vals: Record<string, any>): Record<string, any> {
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(vals || {})) {
-    if (typeof v === 'string' && (v.startsWith('data:') || v.length > 2000)) {
-      out[k] = v.startsWith('url(') ? v : 'none';
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-function sanitizeConfigForWebview(cfg: ThemeConfig): ThemeConfig {
-  const safe: ThemeConfig = JSON.parse(JSON.stringify(cfg));
-  if (safe.values) {safe.values = sanitizeForWebview(safe.values);}
-  if (safe.architectSessions) {
-    for (const sid of Object.keys(safe.architectSessions)) {
-      const sess: any = safe.architectSessions[sid];
-      if (sess && sess.varOverrides) {sess.varOverrides = sanitizeForWebview(sess.varOverrides);}
-      if (sess && typeof sess.bgImage === 'string' && (sess.bgImage.startsWith('data:') || sess.bgImage.length > 2000)) {sess.bgImage = 'none';}
-    }
-  }
-  return safe;
-}
-
-function sanitizeSession(s: any): any {
-  if (!s) {return s;}
-  const copy = JSON.parse(JSON.stringify(s));
-  if (copy.varOverrides) {copy.varOverrides = sanitizeForWebview(copy.varOverrides);}
-  if (typeof copy.bgImage === 'string' && (copy.bgImage.startsWith('data:') || copy.bgImage.length > 2000)) {copy.bgImage = 'none';}
-  return copy;
 }
 
 function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string): void {
@@ -2572,7 +2559,7 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
       const session = themeConfig.architectSessions[sessionId];
       if (session) {
         const derivedValues = themeConfig.activePreset === `arch-${sessionId}` ? themeConfig.values : undefined;
-        CodexPanel.webview.postMessage({ command: 'loadSession', session: sanitizeSession(session), derivedValues: sanitizeForWebview(derivedValues || {}) });
+        CodexPanel.webview.postMessage({ command: 'loadSession', session, derivedValues });
       }
     }
     return;
@@ -2653,88 +2640,35 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   CodexPanel.webview.onDidReceiveMessage((msg: any) => {
     if (msg.command === 'CodexUpdate' && Array.isArray(msg.colors)) {
       sidebarProvider?.pushCodexColors(msg.colors);
-      // LIVE palette update — instant without Apply, only palette-derived vars
-      // User spec: changing accent-1 via color wheel should immediately update
-      // accent-1 and its derived variants (accent-1-80 etc via CSS color-mix auto,
-      // plus glass/border/shadow derived from accent-1). Backgrounds/fonts etc
-      // must NOT auto-update — only palette.
-      try {
-        const cols = msg.colors as string[];
-        if (cols.length >= 6) {
-          const [c1,c2,c3,c4,c5,c6] = cols;
-          const tempSession = {
-            id: 'live', name: 'live', baseHue: 0, harmony: 'analogous',
-            swatchOverrides: {}, savedColors: cols.slice(0,6),
-            bgEffect: themeConfig.values['--ftr10-bg-effect'] || 'none',
-            thpaceEnabled: themeConfig.values['--ftr10-thpace-enabled'] || 'true',
-            createdAt: Date.now(), updatedAt: Date.now()
-          } as ArchitectSession;
-          const preset = deriveCodexPreset(tempSession);
-          const r = parseInt(c1.slice(1,3),16), g = parseInt(c1.slice(3,5),16), b = parseInt(c1.slice(5,7),16);
-          const accDerived = accentDerived(r,g,b);
-          // Keys that are palette-derived and should live-update
-          const liveOverrides: Record<string,string> = {
-            '--ftr10-accent-1': c1 + 'd4',
-            '--ftr10-accent-2': c2,
-            '--ftr10-accent-3': c3,
-            '--ftr10-accent-4': c4,
-            '--ftr10-surface-1': c5 + '30',
-            '--ftr10-surface-2': c6 + '18',
-            '--ftr10-cursor': c4,
-            '--ftr10-tab-border-color': c1,
-            ...preset.overrides,
-            ...accDerived
-          };
-          // Denylist — never live-update these from palette drag
-          const deny = new Set([
-            '--ftr10-bg-effect','--ftr10-thpace-enabled','--ftr10-bg','--ftr10-bg-editor',
-            '--ftr10-bg-image','--ftr10-bg-image-panels','--ftr10-bg-sidebar','--ftr10-bg-panel-bottom',
-            '--ftr10-body-font','--ftr10-heading-font','--ftr10-code-font',
-            '--ftr10-font-activitybar','--ftr10-font-sidebar','--ftr10-font-panel-bottom',
-            '--ftr10-font-panel-top','--ftr10-font-auxiliarybar'
-          ]);
-          const changedKeys: string[] = [];
-          for (const [k,v] of Object.entries(liveOverrides)) {
-            if (deny.has(k)) {continue;}
-            // Only allow palette + tokens + accent-derived glass/border/shadows + bg-ambient
-            const isPalette = k.startsWith('--ftr10-accent-') || k.startsWith('--ftr10-surface-') || k.startsWith('--ftr10-token-') || k.startsWith('--ftr10-cursor') || k.startsWith('--ftr10-tab-') || k === '--ftr10-bg-ambient' || k.startsWith('--ftr10-border') || k.startsWith('--ftr10-glass-') || k.startsWith('--ftr10-shadow-') || k.startsWith('--ftr10-inset-') || k.startsWith('--ftr10-activitybar-') || k.startsWith('--ftr10-editor-') || k.startsWith('--ftr10-accent-shadow-');
-            if (!isPalette) {continue;}
-            if (themeConfig.values[k] !== v) {
-              themeConfig.values[k] = v;
-              changedKeys.push(k);
-            }
-          }
-          if (changedKeys.length) {
-            persistThemeConfig({ fast: true, changedKeys });
-          }
-        }
-      } catch(e) { console.error('CodexUpdate live failed', e); }
     }
 
     if (msg.command === 'getConfig') {
+      const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
       let bgImages: { name: string; dataUri: string }[] = [];
       try {
-        const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
         if (fs.existsSync(bgDir)) {
           bgImages = fs.readdirSync(bgDir)
             .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
             .sort((a, b) => a.localeCompare(b))
-            .slice(0, 20)
-            .map(f => ({ name: f, dataUri: '' })); // names only, no base64 to keep message small (prev bug: 180MB+ dropped message)
+            .map(f => {
+              const mime = /\.svg$/i.test(f) ? 'image/svg+xml'
+                : /\.png$/i.test(f) ? 'image/png'
+                : /\.gif$/i.test(f) ? 'image/gif'
+                : /\.webp$/i.test(f) ? 'image/webp'
+                : /\.avif$/i.test(f) ? 'image/avif'
+                : 'image/jpeg';
+              const b64 = fs.readFileSync(path.join(bgDir, f)).toString('base64');
+              return { name: f, dataUri: 'data:' + mime + ';base64,' + b64 };
+            });
         }
-      } catch {}
-      // Single source of truth: theme.json is canonical. Do NOT parse colors.css here.
-      // colors.css is a generated output and must not overwrite themeConfig.values.
-      const safeConfig = sanitizeConfigForWebview(themeConfig);
-      const safeVals = sanitizeForWebview(themeConfig.values);
-      CodexPanel?.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: safeVals, bgImages });
+      } catch { /* ignore */ }
+      CodexPanel?.webview.postMessage({ command: 'architectConfig', config: themeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: themeConfig.activePreset, values: themeConfig.values, bgImages });
     }
 
     if (msg.command === 'liveUpdate' && msg.values) {
       const changedKeys = Object.keys(msg.values);
-      // theme.json is canonical — merge directly, no colors.css feedback loop
       themeConfig.values = { ...themeConfig.values, ...msg.values };
-      try { persistThemeConfig({ fast: true, changedKeys }); } catch(e){ console.error('liveUpdate persist failed', e); }
+      persistThemeConfig({ fast: true, changedKeys });
     }
 
     if (msg.command === 'saveSession' && Array.isArray(msg.colors) && msg.colors.length >= 6) {
@@ -4740,18 +4674,7 @@ let _varsLiveTimer = null;
 function scheduleVarsLiveUpdate() {
   clearTimeout(_varsLiveTimer);
   _varsLiveTimer = setTimeout(() => {
-    // User spec: only palette colors and colors generated from palette should auto-update.
-    // Backgrounds, fonts, etc. must NOT live-update (need Apply). So filter to palette-derived keys.
-    var PALETTE_LIVE_RE = /^(--ftr10-accent-[1234](?:-\d+)?|--ftr10-surface-[12](?:-\d+)?|--ftr10-cursor|--ftr10-tab-border-color|--ftr10-bg-ambient|--ftr10-border|--ftr10-token-)/;
-    var filtered = {};
-    for (var _e of Object.entries(varsState.values)) {
-      var _k = _e[0], _v = _e[1];
-      if (PALETTE_LIVE_RE.test(_k) || _k === '--ftr10-accent-1' || _k === '--ftr10-accent-2' || _k === '--ftr10-accent-3' || _k === '--ftr10-accent-4') {
-        filtered[_k]=_v;
-      }
-    }
-    if (Object.keys(filtered).length === 0) return;
-    vscode.postMessage({ command: 'liveUpdate', values: filtered });
+    vscode.postMessage({ command: 'liveUpdate', values: varsState.values });
   }, 400);
 }
 
@@ -4901,36 +4824,21 @@ window.addEventListener('message', (e) => {
     if (msg.config) {
       varsState.sections = msg.config.sections || [];
     }
-    // Merge incoming values. Previously only loaded if values empty — that skipped updates
-    // when ANY key (e.g. bgEffect) was already set, leaving Fonts/Opacity stuck on
-    // "Load config to edit". Now always merge, incoming wins, so palette generator loads.
-    if (msg.values && Object.keys(msg.values).length) {
-      varsState.values = { ...varsState.values, ...msg.values };
-    } else if (msg.config && msg.config.values && !Object.keys(varsState.values).length) {
-      varsState.values = msg.config.values;
+    // Only overwrite values on initial load (no values yet); skip if user has live in-flight edits
+    if (!Object.keys(varsState.values).length) {
+      varsState.values = msg.values || (msg.config && msg.config.values) || varsState.values;
     }
-    // Also merge sections fallback: if config.sections missing but simpleGroups present, ensure sections
     if (msg.simpleGroups) varsState.simpleGroups = msg.simpleGroups;
     if (msg.bgImages) __bgImages = msg.bgImages;
     if (msg.activePreset !== undefined) activePresetId = msg.activePreset || null;
     syncBgToggleState(varsState.values);
     renderVarsPanel();
     renderQuickPanels();
+    // Gallery is best-effort — never let it abort the rest of panel init.
     try { syncBgImageGallery(); } catch (e) {
       console.error('syncBgImageGallery failed:', e);
       showPanelError('BG gallery: ' + (e && e.message ? e.message : e));
     }
-  }
-  if (msg.command === 'syncVars' && msg.values) {
-    try {
-      for (const [k,v] of Object.entries(msg.values)) {
-        varsState.values[k] = v;
-      }
-      syncBgToggleState(varsState.values);
-      renderVarsPanel();
-      renderQuickPanels();
-      try { syncBgImageGallery(); } catch {}
-    } catch (e) { console.error('syncVars failed', e); }
   }
 });
 
@@ -5044,34 +4952,22 @@ function showPanelError(text) {
 }
 function setBgImageFromGallery(name) {
   if (name) {
-    // Use tiny url("backgrounds/file") instead of 1MB data URI — shim resolves to __base + backgrounds/file
-    // Polling vars.json stays small, no lag. Data URIs are still used for webview thumbnails in __bgImages.
-    // NOTE: per user spec, background changes must NOT live-update — only Apply persists.
-    // So we only update local state + UI, no live relay.
-    varsState.values['--ftr10-bg-image'] = 'url("backgrounds/' + name + '")';
-    varsState.values['--ftr10-bg-effect'] = 'image';
+    const uri = __bgDataUriByName(name);
+    varsState.values['--ftr10-bg-image'] = uri ? 'url("' + uri + '")' : 'none';
   } else {
     varsState.values['--ftr10-bg-image'] = 'none';
   }
+  scheduleVarsLiveUpdate();
   syncBgImageGallery();
-  // Re-render vars panel to show new value without triggering live persist
-  try { renderVarsPanel(); } catch {}
 }
 function syncBgImageGallery() {
   const currentEffect = (varsState.values['--ftr10-bg-effect'] || 'none').trim().toLowerCase();
   const curImg = (varsState.values['--ftr10-bg-image'] || 'none');
+  // active item is matched by data-URI prefix (the stored value is a data: URI)
   let activeFile = '';
   if (curImg && curImg !== 'none') {
-    const m = curImg.match(/backgrounds\/([^"')]+)/i);
-    const curName = m ? m[1] : '';
-    if (curName) {
-      for (const item of __bgImages) {
-        if (item && item.name === curName) { activeFile = item.name; break; }
-      }
-    } else {
-      for (const item of __bgImages) {
-        if (item && item.dataUri && curImg.indexOf(item.dataUri) === 0) { activeFile = item.name; break; }
-      }
+    for (const item of __bgImages) {
+      if (item && item.dataUri && curImg.indexOf(item.dataUri) === 0) { activeFile = item.name; break; }
     }
   }
   for (const sfx of ['', '_below']) {
@@ -5145,7 +5041,7 @@ function syncBgToggleState(values) {
         // When switching TO image, default to the first available background
         // so the user sees something immediately (they can pick another in the gallery).
         if (selected === 'image' && __bgImages.length && (varsState.values['--ftr10-bg-image'] || 'none') === 'none') {
-          setBgImageFromGallery(__bgImages[0]?.name || '');
+          setBgImageFromGallery(__bgImages[0]);
         }
         syncBgToggleState(varsState.values);
         scheduleVarsLiveUpdate();
