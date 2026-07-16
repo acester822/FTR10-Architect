@@ -489,7 +489,14 @@ export function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string
   }
   writeColorsCss(values, opts?.changedKeys);
   writeVarsJson(state.store.profilePath, { ...state.store.themeConfig, values });
-  generateShim(state.store.profilePath, { ...state.store.themeConfig, values });
+  // Only regenerate the shim when something it embeds changed (font var or cssImports).
+  // Card/preset switches go through this full path and would otherwise rewrite the
+  // 300KB shim on every switch — the main source of the "switch cards → hang" symptom.
+  const _fontChangedFull = (opts?.changedKeys || Object.keys(values)).some(k => k.endsWith('-font'));
+  const _importsChangedFull = JSON.stringify(state.store.themeConfig.cssImports) !== JSON.stringify(({ ...state.store.themeConfig, values }).cssImports);
+  if (_fontChangedFull || _importsChangedFull) {
+    generateShim(state.store.profilePath, { ...state.store.themeConfig, values });
+  }
   writeTerminalColors(state.store.profilePath, state.store.themeConfig.values);
   // VS Code syntax color syncing was previously disabled due to broken highlight behavior.
   // User requested re-enabling full token synchronization (theme JSON + settings toggle).

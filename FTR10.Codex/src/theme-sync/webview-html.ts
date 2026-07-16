@@ -334,6 +334,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
         }
       }
       if (msg.command === 'relayVars' && msg.cssVars) {
+        try { applyPanelFontVars(msg.cssVars); } catch(_) {}
         try { new BroadcastChannel('theme-sync').postMessage({ cssVars: msg.cssVars }); } catch(_) {}
       }
     }
@@ -386,7 +387,7 @@ window.__FTR10_INIT__ = ${initJson};
 
   body, html {
     height: 100%;
-    font-family: 'Share Tech Mono', monospace;
+    font-family: var(--ftr10-font-panel-top, var(--ftr10-body-font, 'Share Tech Mono', monospace));
     /* Explicit dark background: the Architect panel uses a dark cyberpunk aesthetic
        throughout.  Without this the transparent default inherits the VS Code webview
        background which can be white/light in light themes, making all dark-colored
@@ -464,6 +465,13 @@ window.__FTR10_INIT__ = ${initJson};
     max-width: 860px;
     margin-bottom: 18px;
     min-height: 480px;
+  }
+  .center-col {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   /* ── side swatch panels ──────────────────────────────────────── */
@@ -1220,10 +1228,14 @@ window.__FTR10_INIT__ = ${initJson};
 
   /* ── bg image gallery ─────────────────────────────────── */
   .bg-img-gallery {
+    margin-top: 8px;
+    display: block;
+  }
+  .bg-img-gallery > .qp-label { opacity: 0.5; margin-bottom: 4px; }
+  .bg-img-thumbs {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
     gap: 5px;
-    margin-top: 8px;
     max-height: 168px;
     overflow-y: auto;
     padding: 5px;
@@ -1231,6 +1243,18 @@ window.__FTR10_INIT__ = ${initJson};
     background: rgba(0,0,0,0.25);
     border: 1px solid rgba(255,255,255,0.06);
   }
+  .qp-btn {
+    font-family: var(--ftr10-font-panel-top, 'Share Tech Mono', monospace);
+    font-size: 0.62rem;
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(var(--ui-accent-rgb),0.3);
+    background: rgba(0,8,20,0.7);
+    color: rgba(180,200,255,0.8);
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .qp-btn:hover { border-color: rgba(var(--ui-accent-rgb),0.7); color: #fff; }
   .bg-img-thumb {
     position: relative;
     aspect-ratio: 16 / 9;
@@ -1315,8 +1339,8 @@ window.__FTR10_INIT__ = ${initJson};
   /* ── vars panel ───────────────────────────────────────────────── */
   .vars-panel {
     position: relative; z-index: 2;
-    width: min(96vw, 860px);
-    margin: 12px auto 60px;
+    width: 100%;
+    margin: 16px auto 30px;
     border: 1px solid rgba(var(--ui-accent-rgb),0.18);
     border-radius: 14px;
     background: rgba(0,8,20,0.62);
@@ -1582,6 +1606,19 @@ window.__FTR10_INIT__ = ${initJson};
         <button class="btn-apply" id="applyBtn">⬡ Apply</button>
       </div>
 
+      <div class="vars-panel">
+        <div class="vars-panel-header">
+          <span class="vars-panel-title">&#9672; Variables</span>
+          <div class="vars-toggle-row">
+            <span class="vars-toggle-label" id="varsToggleLabel">Simple</span>
+            <button class="vars-toggle-btn" id="varsToggleBtn" title="Toggle advanced mode">&#9662;</button>
+          </div>
+        </div>
+        <div class="vars-content" id="varsContent">
+          <div class="v-empty">Variables load after first Apply.</div>
+        </div>
+      </div>
+
       <div class="legend-panel mobile" id="colorLegendMobile"></div>
     </div>
 
@@ -1673,19 +1710,6 @@ window.__FTR10_INIT__ = ${initJson};
   </div>
 </div>
 
-<!-- ── variables panel ────────────────────────────────────────────────────── -->
-<div class="vars-panel">
-  <div class="vars-panel-header">
-    <span class="vars-panel-title">&#9672; Variables</span>
-    <div class="vars-toggle-row">
-      <span class="vars-toggle-label" id="varsToggleLabel">Simple</span>
-      <button class="vars-toggle-btn" id="varsToggleBtn" title="Toggle advanced mode">&#9662;</button>
-    </div>
-  </div>
-  <div class="vars-content" id="varsContent">
-    <div class="v-empty">Variables load after first Apply.</div>
-  </div>
-</div>
 
 <script>
 (function() {
@@ -2245,6 +2269,25 @@ const SELECT_OPTIONS_A = {
   '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A
 };
 
+// Apply the theme's font (and a few layout) vars to THIS webview's own document so
+// the Architect/Editor GUI itself follows the configured fonts. The workbench shim
+// writes these to the workbench :root, but the webview is a separate document and
+// only forwarded them via BroadcastChannel — never applied locally. Without this the
+// GUI stays in its hardcoded font regardless of the user's font choice.
+const __PANEL_FONT_KEYS = [
+  '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font',
+  '--ftr10-font-sidebar', '--ftr10-font-activitybar', '--ftr10-font-panel-bottom',
+  '--ftr10-font-panel-top', '--ftr10-font-auxiliarybar'
+];
+function applyPanelFontVars(values) {
+  if (!values) return;
+  const root = document.documentElement;
+  for (const k of __PANEL_FONT_KEYS) {
+    const v = values[k];
+    if (v) root.style.setProperty(k, v);
+  }
+}
+
 function escapeHtmlA(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
 function isHexA(v) { return /^#[0-9a-f]{6,8}$/i.test((v||'').trim()); }
 function toPickerHexA(v) { const h=(v||'').trim(); return h.length>=7?h.slice(0,7):'#000000'; }
@@ -2457,6 +2500,7 @@ window.addEventListener('message', (e) => {
     });
     varsState.values = rv;
     syncBgToggleState(rv);
+    applyPanelFontVars(rv);
     renderVarsPanel();
     renderQuickPanels();
     updateUI(false);
@@ -2473,6 +2517,7 @@ window.addEventListener('message', (e) => {
     if (msg.bgImages) __bgImages = msg.bgImages;
     if (msg.activePreset !== undefined) activePresetId = msg.activePreset || null;
     syncBgToggleState(varsState.values);
+    applyPanelFontVars(varsState.values);
     renderVarsPanel();
     renderQuickPanels();
     // Gallery is best-effort — never let it abort the rest of panel init.
@@ -2600,9 +2645,12 @@ function setBgImageFromGallery(name) {
     // symlink and the shim's applyVars() resolves it to the absolute URL. No
     // data: URI — keeps vars.json/theme.json tiny and avoids host base64.
     varsState.values['--ftr10-bg-image'] = 'url("backgrounds/' + name + '")';
+    // Selecting a background implies the "image" effect so it actually shows.
+    varsState.values['--ftr10-bg-effect'] = 'image';
   } else {
     varsState.values['--ftr10-bg-image'] = 'none';
   }
+  syncBgToggleState(varsState.values);
   scheduleVarsLiveUpdate();
   syncBgImageGallery();
 }
@@ -2619,26 +2667,30 @@ function __bgFilenameFromValue(v) {
   return v.substring(s, e).trim();
 }
 function syncBgImageGallery() {
-  const currentEffect = (varsState.values['--ftr10-bg-effect'] || 'none').trim().toLowerCase();
   const curImg = (varsState.values['--ftr10-bg-image'] || 'none');
   // active item is matched by the backgrounds/<file> name in the stored value
   const activeFile = __bgFilenameFromValue(curImg);
   for (const sfx of ['', '_below']) {
     const host = document.getElementById('bgImgGallery' + sfx);
     if (!host) continue;
-    if (currentEffect !== 'image' || __bgImages.length === 0) {
+    // Show the picker whenever background images are available — it is no longer
+    // gated behind the (now-removed) "image" effect option. Selecting a thumbnail
+    // sets --ftr10-bg-effect to "image" so the chosen background actually renders.
+    if (__bgImages.length === 0) {
       host.style.display = 'none';
       host.innerHTML = '';
       continue;
     }
     host.style.display = '';
-    let html = '';
+    let html = '<div class="bg-img-thumbs">';
     for (const item of __bgImages) {
       const name = item && item.name ? item.name : '';
       const src = (item && item.uri) ? item.uri : (item && item.dataUri ? item.dataUri : '');
       const sel = name === activeFile ? ' selected' : '';
       html += "<button type='button' class='bg-img-thumb" + sel + "' data-bgimg='" + escapeHtmlA(name) + "' title='" + escapeHtmlA(name) + "'><img src='" + src + "' alt=''></button>";
     }
+    html += "</div>";
+    html += "<div class='qp-row'><span class='qp-label'>Image</span><button type='button' class='qp-btn' data-bgimg=''>None</button></div>";
     host.innerHTML = html;
     host.querySelectorAll('[data-bgimg]').forEach(function (btn) {
       btn.addEventListener('click', function () { setBgImageFromGallery(btn.getAttribute('data-bgimg')); });
@@ -2669,13 +2721,17 @@ function syncBgToggleState(values) {
     const effectEl = document.getElementById('bgEffectToggle' + sfx);
     const selectEl = document.getElementById('bgEffectSelect' + sfx);
 
-    // Inject the image gallery container right after the effect <select> (if not present)
+    // Inject the image gallery container right after the effect <select> (if not present).
+    // Visibility is managed by syncBgImageGallery() (shown whenever bg images exist).
     const selectWrap = selectEl ? selectEl.closest('.qp-select-wrap') : null;
     if (selectWrap && !document.getElementById('bgImgGallery' + sfx)) {
       const gal = document.createElement('div');
       gal.id = 'bgImgGallery' + sfx;
       gal.className = 'bg-img-gallery';
-      gal.style.display = 'none';
+      const galLabel = document.createElement('div');
+      galLabel.className = 'qp-label';
+      galLabel.textContent = 'Background Image';
+      gal.appendChild(galLabel);
       selectWrap.parentNode.insertBefore(gal, selectWrap.nextSibling);
     }
     if (thpaceEl) {
@@ -4017,6 +4073,7 @@ export function getEditorHtml(cfg: ThemeConfig): string {
         syncBgModeBtn();
       }
       if (msg.command === 'relayVars' && msg.cssVars) {
+        try { applyPanelFontVars(msg.cssVars); } catch(_) {}
         try { new BroadcastChannel('theme-sync').postMessage({ cssVars: msg.cssVars }); } catch(_) {}
       }
     });
