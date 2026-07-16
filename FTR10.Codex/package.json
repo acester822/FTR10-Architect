@@ -1,8 +1,8 @@
 {
-  "name": "ftr10-codex",
-  "displayName": "FTR10 Codex",
+  "name": "architect",
+  "displayName": "FTR10 Architect",
   "version": "0.11.3",
-  "description": "FTR10 Codex unified theme and markdown preview extension.",
+  "description": "FTR10 Architect unified theme and markdown preview extension.",
   "categories": [
     "Other"
   ],
@@ -17,7 +17,7 @@
   "contributors": [
     "acester822"
   ],
-  "publisher": "acester822",
+  "publisher": "ftr10",
   "main": "./out/native/extension.js",
   "browser": "./out/web/extension.js",
   "scripts": {

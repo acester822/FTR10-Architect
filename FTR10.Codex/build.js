@@ -37,7 +37,7 @@ const esbuildProblemMatcherPlugin = {
 const nativeConfig = {
   entryPoints: ['./src/extension.ts'],
   bundle: true,
-  minify: true,
+  minify: false,
   platform: 'node', // For CJS
   outfile: './out/native/extension.js',
   target: 'node16',
@@ -82,7 +82,7 @@ const defaultWindow = {
 const webConfig = {
   entryPoints: ['./src/extension-web.ts'],
   bundle: true,
-  minify: true,
+  minify: false,
   platform: 'browser', // For ESM
   outfile: './out/web/extension.js',
   target: 'es2020',

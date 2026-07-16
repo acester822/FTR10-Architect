@@ -33,6 +33,7 @@ FTR10.Codex/.cache/
 FTR10.Codex/.tmp/
 
 # --- Logs / OS ---
+logs/
 *.log
 .DS_Store
 Thumbs.db

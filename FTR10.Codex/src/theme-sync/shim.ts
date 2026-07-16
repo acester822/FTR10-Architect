@@ -1,0 +1,250 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as chokidar from 'chokidar';
+import type { ThemeConfig } from './types';
+
+export function writeVarsJson(profilePathArg: string, cfg: ThemeConfig): void {
+  const varsPath = path.join(profilePathArg, 'vars.json');
+  fs.writeFileSync(varsPath, JSON.stringify({
+    values: cfg.values,
+    lastModified: Date.now()
+  }));
+}
+
+
+export function buildWebviewVarsCss(cfg: ThemeConfig): string {
+  const vals = cfg.values || {};
+  let css = Object.keys(vals).length
+    ? ':root {\n' + Object.entries(vals).map(([k, v]) => `  ${k}: ${v};`).join('\n') + '\n}\n'
+    : '';
+  if (cfg.customCss) css += '\n' + cfg.customCss + '\n';
+  return css;
+}
+
+export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
+  const shimPath = path.join(profilePathArg, 'shim.js');
+  const baseCssFiles = cfg.cssImports?.length ? cfg.cssImports : ['css.files/colors.css', 'css.files/main.css', 'css.files/font_load.css'];
+  const cssFiles = baseCssFiles.includes('css.files/effects.css') ? baseCssFiles : [...baseCssFiles, 'css.files/effects.css'];
+  // Read each CSS file from disk NOW (in the extension host) and embed its content
+  // directly as a <style> block. This removes ALL runtime dependency on code-server
+  // following the css.files symlink — a symlinked dir under /out/ is not reliably
+  // served by the static file handler, which is why the old <link href="__base+css.files/..">
+  // approach silently failed to load any theme CSS. Inlining is self-contained.
+  function readCssSafe(relPath: string): string {
+    try {
+      const p = path.join(profilePathArg, relPath);
+      return fs.readFileSync(p, 'utf8');
+    } catch (_) { return ''; }
+  }
+  const cssBlocks = cssFiles.map((f: string) => {
+    const id = 'ftr10-' + f.replace(/[^a-zA-Z0-9]/g, '');
+    const content = readCssSafe(f);
+    return { id, content };
+  });
+  function readJsSafe(relPath: string): string {
+    try {
+      const p = path.join(profilePathArg, relPath);
+      return fs.readFileSync(p, 'utf8');
+    } catch (_) { return ''; }
+  }
+  const thpaceLib = readJsSafe('css.files/thpace.min.js');
+  const thpaceInit = readJsSafe('css.files/thpace-background.js');
+  const contextMenu = readJsSafe('css.files/context-menu-codex.js');
+  const shim = `(function() {
+var ID = 'theme-sync-live-style';
+var el = document.getElementById(ID);
+if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
+var __base = (function() {
+  // Used only for resolving background-image url("backgrounds/..") to an absolute
+  // served path. The theme CSS itself is inlined below, so __base is best-effort.
+  try {
+    if (typeof globalThis._VSCODE_FILE_ROOT === 'string' && globalThis._VSCODE_FILE_ROOT.length) {
+      var root = globalThis._VSCODE_FILE_ROOT;
+      if (root.charAt(root.length - 1) !== '/') root += '/';
+      return root + 'vs/code/browser/workbench/';
+    }
+  } catch (_) {}
+  try { return new URL('./', import.meta.url).href; } catch (_) {}
+  try { return new URL('.', location.href).href; } catch (_) {}
+  return '/';
+})();
+// Inlined theme CSS (read from disk at generation time — no network/symlink needed)
+${cssBlocks.map(b => `var __style_${b.id.replace(/-/g, '_')} = document.createElement('style');\n__style_${b.id.replace(/-/g, '_')}.id = '${b.id}';\n__style_${b.id.replace(/-/g, '_')}.textContent = ${JSON.stringify(b.content)};\nif (!document.getElementById('${b.id}')) document.head.appendChild(__style_${b.id.replace(/-/g, '_')});`).join('\n')}
+
+// Thpace: load library first, then init script sequentially.
+// Thpace: inline library first, then init script (read from disk at gen time).
+var __libId = 'ftr10-thpace-lib';
+if (!document.getElementById(__libId) && ${JSON.stringify(thpaceLib)}.length) {
+  var __sLib = document.createElement('script');
+  __sLib.id = __libId;
+  __sLib.textContent = ${JSON.stringify(thpaceLib)};
+  __sLib.onload = function() {
+    var __initId = 'ftr10-thpace-init';
+    if (!document.getElementById(__initId) && ${JSON.stringify(thpaceInit)}.length) {
+      var __sInit = document.createElement('script');
+      __sInit.id = __initId;
+      __sInit.textContent = ${JSON.stringify(thpaceInit)};
+      document.head.appendChild(__sInit);
+    }
+  };
+  document.head.appendChild(__sLib);
+}
+
+var __customId = 'ftr10-context-menu-codex';
+if (!document.getElementById(__customId) && ${JSON.stringify(contextMenu)}.length) {
+  var __sCustom = document.createElement('script');
+  __sCustom.id = __customId;
+  __sCustom.textContent = ${JSON.stringify(contextMenu)};
+  document.head.appendChild(__sCustom);
+}
+
+var __defaultVars = ${JSON.stringify(cfg.values)};
+var __nebulaCanvas = null, __nebulaRaf = null;
+function __startNebulaParticles() {
+  if (__nebulaCanvas && __nebulaCanvas.isConnected) return;
+  var cv = document.createElement('canvas');
+  cv.id = 'ftr10-nebula-particles';
+  cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:3;pointer-events:none;';
+  document.body.appendChild(cv);
+  __nebulaCanvas = cv;
+  var ctx = cv.getContext('2d');
+  function resize() { cv.width = window.innerWidth; cv.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  var COUNT = 55, TWO_PI = Math.PI * 2;
+  var pts = Array.from({length: COUNT}, function() {
+    return {
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      size: Math.random() * 3 + 1.2,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.2 - 0.06,
+      alpha: Math.random() * 0.45 + 0.25,
+      da: (Math.random() - 0.5) * 0.003,
+      twinkle: Math.random() * TWO_PI,
+      colIdx: Math.floor(Math.random() * 3)
+    };
+  });
+  function getCol(idx) {
+    var cs = getComputedStyle(document.documentElement);
+    var key = idx === 0 ? '--ftr10-accent-1' : idx === 1 ? '--ftr10-accent-2' : '--ftr10-accent-3';
+    var v = cs.getPropertyValue(key).trim().slice(0, 7);
+    return v || ['#00d4ff','#9b59b6','#3498db'][idx];
+  }
+  function tick() {
+    if (!__nebulaCanvas) return;
+    var w = cv.width, h = cv.height;
+    ctx.clearRect(0, 0, w, h);
+    pts.forEach(function(p) {
+      p.twinkle += 0.02;
+      p.alpha += p.da;
+      if (p.alpha > 0.7 || p.alpha < 0.08) p.da *= -1;
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -10) { p.y = h + 5; p.x = Math.random() * w; }
+      if (p.x < -10) p.x = w + 5;
+      if (p.x > w + 10) p.x = -5;
+      var col = getCol(p.colIdx);
+      var pulse = 0.5 + 0.5 * Math.sin(p.twinkle);
+      ctx.save();
+      ctx.globalAlpha = p.alpha * pulse;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size / 2, 0, TWO_PI);
+      ctx.fillStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = p.size * 5;
+      ctx.fill();
+      ctx.restore();
+    });
+    __nebulaRaf = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function __stopNebulaParticles() {
+  if (__nebulaRaf) { cancelAnimationFrame(__nebulaRaf); __nebulaRaf = null; }
+  if (__nebulaCanvas && __nebulaCanvas.isConnected) __nebulaCanvas.remove();
+  __nebulaCanvas = null;
+}
+function __applyEffect(vals) {
+  if (!document.body) { document.addEventListener('DOMContentLoaded', function() { __applyEffect(vals); }); return; }
+  var effect = ((vals && vals['--ftr10-bg-effect']) || 'none').trim().toLowerCase();
+  document.body.className = (document.body.className || '').replace(/\\bftr10-effect--\\S+/g, '').trim();
+  if (effect !== 'none') document.body.classList.add('ftr10-effect--' + effect);
+  if (effect === 'nebula') { __startNebulaParticles(); } else { __stopNebulaParticles(); }
+}
+var applyVars = function(vars) {
+  // Resolve tiny url("backgrounds/file") to absolute __base + backgrounds/file so
+  // the injected :root style actually loads the image (the symlinked backgrounds/
+  // dir is served from the workbench origin). Avoids storing 1MB data URIs in
+  // vars.json (polling lag fix) while still resolving correctly at apply time.
+  var resolved = {};
+  for (var k in vars) {
+    var v = vars[k];
+    if ((k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') && typeof v === 'string') {
+      // Extract a backgrounds/ filename from url("backgrounds/X") or
+      // url("../backgrounds/X") and resolve to the workbench-served absolute path.
+      // IMPORTANT: do NOT use a regex literal with escapes here — esbuild mangles
+      // '\/' and '\(' when bundling the shim, which breaks parsing. Use plain
+      // string scanning instead (no regex at all).
+      var idx = v.indexOf('backgrounds/');
+      if (idx !== -1) {
+        var start = idx + 'backgrounds/'.length;
+        var end = v.indexOf('"', start);
+        if (end === -1) end = v.indexOf("'", start);
+        if (end === -1) end = v.length;
+        var fname = v.substring(start, end);
+        v = 'url("' + __base + 'backgrounds/' + fname + '")';
+      }
+    }
+    resolved[k] = v;
+  }
+  el.textContent = ':root {' + Object.entries(resolved).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join(' ') + ' }';
+  __applyEffect(resolved);
+  // Immediately enable/disable Thpace canvas based on the var (if API is ready)
+  if (window.ftr10Thpace) {
+    var thpaceOn = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
+    thpaceOn ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
+  }
+};
+applyVars(__defaultVars);
+
+// Poll vars.json for live updates from the extension host.
+// __base resolves to the local workbench dir where vars.json is symlinked
+// (see __base resolution above), so a direct fetch is reliable.
+// Adaptive scheduling: burst mode (1.5 s) for 8 s after a change is detected,
+// idle mode (30 s) otherwise — avoids unnecessary fetches when nothing is changing.
+var __lastMod = 0;
+var __pollTimer = null;
+var __burstUntil = 0;
+function __pollVars() {
+  fetch(__base + 'vars.json?t=' + Date.now())
+    .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then(function(data) {
+      if (data && data.lastModified && data.lastModified !== __lastMod) {
+        __lastMod = data.lastModified;
+        __burstUntil = Date.now() + 8000;
+        if (data.values) applyVars(data.values);
+      }
+    })
+    .catch(function() {})
+    .finally(function() {
+      __pollTimer = setTimeout(__pollVars, Date.now() < __burstUntil ? 1500 : 30000);
+    });
+}
+__pollTimer = setTimeout(__pollVars, 1000);
+
+// Also keep BroadcastChannel + postMessage as fallbacks
+try {
+  var __ch = new BroadcastChannel('theme-sync');
+  __ch.onmessage = function(e) {
+    var d = e.data || {};
+    if (d.cssVars) applyVars(d.cssVars);
+  };
+} catch(e) {}
+window.addEventListener('message', function(e) {
+  if (e.data?.type === 'theme-sync-update' && e.data.cssVars) applyVars(e.data.cssVars);
+});
+})();`;
+  fs.writeFileSync(shimPath, shim);
+}
