@@ -40,7 +40,13 @@ export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
   }
   const cssBlocks = cssFiles.map((f: string) => {
     const id = 'ftr10-' + f.replace(/[^a-zA-Z0-9]/g, '');
-    const content = readCssSafe(f);
+    let content = readCssSafe(f);
+    // Rewrite @font-face url('../fonts/X'), url("../fonts/X"), url(../fonts/X)
+    // and url('fonts/X') to a placeholder that the shim replaces with the runtime
+    // workbench base URL. Inlined CSS resolves relative url()s against the CDN
+    // origin (which has no ../fonts) -> 404 -> monospace fallback. The workbench
+    // serves fonts/ via a symlink (see patchWorkbench), so __base + 'fonts/X' works.
+    content = content.replace(/url\((['"]?)(?:\.\.\/)?fonts\//g, "url($1__FTR10_FONTBASE__fonts/");
     return { id, content };
   });
   function readJsSafe(relPath: string): string {
@@ -56,6 +62,26 @@ export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
 var ID = 'theme-sync-live-style';
 var el = document.getElementById(ID);
 if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
+// ── Runtime tracer (workbench origin) ──────────────────────────────────────
+// Cannot write files here, so keep a ring buffer on window + console.debug.
+// Inspect from Chrome DevTools:  copy(window.__ftr10TraceLog)  or  __ftr10Trace()
+// Each entry also relays to the extension host (via BroadcastChannel) so it
+// lands in ~/.ftr10/logs/ftr10-trace.log alongside host/webview events.
+window.__ftr10TraceLog = window.__ftr10TraceLog || [];
+var __ftr10TraceCh = null;
+try { __ftr10TraceCh = new BroadcastChannel('ftr10-trace'); } catch (_e) {}
+function __trace(ev, data) {
+  try {
+    var entry = { t: Date.now(), src: 'shim', ev: ev };
+    if (data) entry.d = data;
+    window.__ftr10TraceLog.push(entry);
+    if (window.__ftr10TraceLog.length > 500) window.__ftr10TraceLog.shift();
+    if (console && console.debug) console.debug('[FTR10-TRACE]', ev, data || '');
+    if (__ftr10TraceCh) __ftr10TraceCh.postMessage(entry);
+  } catch (_e) {}
+}
+window.__ftr10Trace = function() { try { console.table(window.__ftr10TraceLog); } catch (_e) { console.log(window.__ftr10TraceLog); } return window.__ftr10TraceLog; };
+__trace('shim-loaded', { href: location.href });
 var __base = (function() {
   // Used only for resolving background-image url("backgrounds/..") to an absolute
   // served path. The theme CSS itself is inlined below, so __base is best-effort.
@@ -71,7 +97,10 @@ var __base = (function() {
   return '/';
 })();
 // Inlined theme CSS (read from disk at generation time — no network/symlink needed)
-${cssBlocks.map(b => `var __style_${b.id.replace(/-/g, '_')} = document.createElement('style');\n__style_${b.id.replace(/-/g, '_')}.id = '${b.id}';\n__style_${b.id.replace(/-/g, '_')}.textContent = ${JSON.stringify(b.content)};\nif (!document.getElementById('${b.id}')) document.head.appendChild(__style_${b.id.replace(/-/g, '_')});`).join('\n')}
+${cssBlocks.map(b => `var __style_${b.id.replace(/-/g, '_')} = document.createElement('style');
+__style_${b.id.replace(/-/g, '_')}.id = '${b.id}';
+__style_${b.id.replace(/-/g, '_')}.textContent = (${JSON.stringify(b.content)}).replace(/__FTR10_FONTBASE__/g, __base);
+if (!document.getElementById('${b.id}')) document.head.appendChild(__style_${b.id.replace(/-/g, '_')});`).join('\n')}
 
 // Thpace: load library first, then init script sequentially.
 // Thpace: inline library first, then init script (read from disk at gen time).
@@ -169,11 +198,15 @@ function __stopNebulaParticles() {
 function __applyEffect(vals) {
   if (!document.body) { document.addEventListener('DOMContentLoaded', function() { __applyEffect(vals); }); return; }
   var effect = ((vals && vals['--ftr10-bg-effect']) || 'none').trim().toLowerCase();
+  var prev = (document.body.getAttribute('data-ftr10-effect') || 'none');
   document.body.className = (document.body.className || '').replace(/\\bftr10-effect--\\S+/g, '').trim();
   if (effect !== 'none') document.body.classList.add('ftr10-effect--' + effect);
+  document.body.setAttribute('data-ftr10-effect', effect);
+  if (prev !== effect) __trace('effect-switch', { from: prev, to: effect });
   if (effect === 'nebula') { __startNebulaParticles(); } else { __stopNebulaParticles(); }
 }
 var applyVars = function(vars) {
+  var __t0 = (window.performance && performance.now) ? performance.now() : Date.now();
   // Resolve tiny url("backgrounds/file") to absolute __base + backgrounds/file so
   // the injected :root style actually loads the image (the symlinked backgrounds/
   // dir is served from the workbench origin). Avoids storing 1MB data URIs in
@@ -185,7 +218,7 @@ var applyVars = function(vars) {
       // Extract a backgrounds/ filename from url("backgrounds/X") or
       // url("../backgrounds/X") and resolve to the workbench-served absolute path.
       // IMPORTANT: do NOT use a regex literal with escapes here — esbuild mangles
-      // '\/' and '\(' when bundling the shim, which breaks parsing. Use plain
+      // '\\/' and '\\(' when bundling the shim, which breaks parsing. Use plain
       // string scanning instead (no regex at all).
       var idx = v.indexOf('backgrounds/');
       if (idx !== -1) {
@@ -199,21 +232,53 @@ var applyVars = function(vars) {
     }
     resolved[k] = v;
   }
-  el.textContent = ':root {' + Object.entries(resolved).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join(' ') + ' }';
+  // Surgical apply: only rewrite what actually changed since the last apply.
+  // Rewriting the whole :root block forces a full style recalc and re-decodes the
+  // background image on every apply — which during the 250ms burst poll made card
+  // switches hang + lag. Skip entirely if nothing changed.
+  var __changed = false;
+  var __next = {};
+  for (var kk in resolved) {
+    if (window.__ftr10LastApplied && window.__ftr10LastApplied[kk] === resolved[kk]) continue;
+    __changed = true;
+    __next[kk] = resolved[kk];
+  }
+  window.__ftr10LastApplied = resolved;
+  if (!__changed) {
+    __applyEffect(resolved);
+    var __t1 = (window.performance && performance.now) ? performance.now() : Date.now();
+    __trace('applyVars', { keys: 0, effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(), thpace: thpaceOn, ms: Math.round((__t1 - __t0) * 100) / 100, skipped: true });
+    return;
+  }
+  el.textContent = ':root {' + Object.entries(__next).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join(' ') + ' }';
   __applyEffect(resolved);
   // Immediately enable/disable Thpace canvas based on the var (if API is ready)
+  var thpaceOn = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
   if (window.ftr10Thpace) {
-    var thpaceOn = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
+    if (window.__ftr10ThpaceLast !== thpaceOn) {
+      __trace('thpace-toggle', { enabled: thpaceOn });
+      window.__ftr10ThpaceLast = thpaceOn;
+    }
     thpaceOn ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
   }
+  var __t1 = (window.performance && performance.now) ? performance.now() : Date.now();
+  __trace('applyVars', {
+    keys: Object.keys(vars).length,
+    effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(),
+    thpace: thpaceOn,
+    ms: Math.round((__t1 - __t0) * 100) / 100
+  });
 };
 applyVars(__defaultVars);
 
 // Poll vars.json for live updates from the extension host.
 // __base resolves to the local workbench dir where vars.json is symlinked
 // (see __base resolution above), so a direct fetch is reliable.
-// Adaptive scheduling: burst mode (1.5 s) for 8 s after a change is detected,
-// idle mode (30 s) otherwise — avoids unnecessary fetches when nothing is changing.
+// Adaptive scheduling: a short burst (300 ms) for 2 s after a change is detected,
+// idle mode (30 s) otherwise. The burst used to be 250 ms for 8 s, which — combined
+// with the shim re-applying the whole :root block (incl. re-decoding the bg image)
+// on every poll — made card switches hang and lag. applyVars is now diff-aware, and
+// the burst is short, so switching stays snappy without the long lag tail.
 var __lastMod = 0;
 var __pollTimer = null;
 var __burstUntil = 0;
@@ -222,14 +287,15 @@ function __pollVars() {
     .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
     .then(function(data) {
       if (data && data.lastModified && data.lastModified !== __lastMod) {
+        __trace('poll-change', { lastMod: data.lastModified });
         __lastMod = data.lastModified;
-        __burstUntil = Date.now() + 8000;
+        __burstUntil = Date.now() + 2000;
         if (data.values) applyVars(data.values);
       }
     })
     .catch(function() {})
     .finally(function() {
-      __pollTimer = setTimeout(__pollVars, Date.now() < __burstUntil ? 1500 : 30000);
+      __pollTimer = setTimeout(__pollVars, Date.now() < __burstUntil ? 300 : 30000);
     });
 }
 __pollTimer = setTimeout(__pollVars, 1000);

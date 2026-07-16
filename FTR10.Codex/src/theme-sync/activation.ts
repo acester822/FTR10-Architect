@@ -13,6 +13,46 @@ import { buildSessionCardsHtml, getSidebarHtml, getCodexHtml, getEditorHtml } fr
 import * as state from './state';
 import { isPanelAlive } from './state';
 
+// ── Runtime tracer ────────────────────────────────────────────────────────
+// Appends compact JSONL events to ~/.ftr10/logs/ftr10-trace.log so we can see
+// EXACTLY what fires as the user navigates the extension (effect switches,
+// config persists, shim regens, live updates, card applies). The shim and the
+// webviews forward their own events here via the 'trace' message, so this file
+// is the single unified timeline. Toggle with the FTR10_TRACE env var or the
+// ftr10.trace setting; defaults ON (cheap — one appendFileSync per event).
+let __traceEnabled = true;
+let __tracePath = '';
+let __traceSeq = 0;
+function __traceInit(profilePath: string): void {
+  try {
+    const logDir = path.join(profilePath, 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    __tracePath = path.join(logDir, 'ftr10-trace.log');
+    // Rotate if the log is over ~2 MB so it never grows unbounded.
+    try {
+      if (fs.existsSync(__tracePath) && fs.statSync(__tracePath).size > 2 * 1024 * 1024) {
+        fs.renameSync(__tracePath, __tracePath + '.1');
+      }
+    } catch (_e) { /* ignore */ }
+    trace('trace-init', { pid: process.pid, when: new Date().toISOString() });
+  } catch (_e) { /* tracing must never break the extension */ }
+}
+export function trace(event: string, data?: any, source = 'host'): void {
+  if (!__traceEnabled || !__tracePath) return;
+  try {
+    const line = JSON.stringify({ t: Date.now(), seq: ++__traceSeq, src: source, ev: event, ...(data ? { d: data } : {}) });
+    fs.appendFileSync(__tracePath, line + '\n');
+  } catch (_e) { /* never throw from tracing */ }
+}
+function __timed<T>(event: string, fn: () => T, data?: any): T {
+  const start = Date.now();
+  try {
+    return fn();
+  } finally {
+    trace(event, { ...(data || {}), ms: Date.now() - start });
+  }
+}
+
 export function ensureBaseSessions(): boolean {
   let changed = false;
   // Create a base card for each static preset if not already present
@@ -30,25 +70,6 @@ export function ensureBaseSessions(): boolean {
   return changed;
 }
 
-export function resetBaseSession(sessionId: string): void {
-  const existing = state.store.themeConfig.architectSessions[sessionId];
-  if (!existing?.isBase || !existing.basePresetId) return;
-  const preset = THEME_PRESETS.find(p => p.id === existing.basePresetId);
-  if (!preset) return;
-  const fresh = presetToBaseSession(preset);
-  // Preserve id and isBase flags but reset content to factory
-  fresh.createdAt = existing.createdAt;
-  fresh.updatedAt = Date.now();
-  state.store.themeConfig.architectSessions[sessionId] = fresh;
-  persistThemeConfig();
-  state.store.sidebarProvider?.syncSessions();
-  // If that base card is currently active, re-apply it
-  if (state.store.themeConfig.activePreset === `arch-${sessionId}`) {
-    applyArchitectSession(sessionId);
-  }
-  vscode.window.showInformationMessage(`Base card "${fresh.name}" reset to defaults.`);
-}
-
 function registerLivePanel(p: vscode.WebviewPanel | undefined): void {
   if (!p) return;
   if (state.store.livePanels.indexOf(p) === -1) state.store.livePanels.push(p);
@@ -63,6 +84,14 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
   state.store.profilePath = configPath || path.join(os.homedir(), '.ftr10');
   state.store.extensionRoot = context.extensionUri.fsPath;
   fs.mkdirSync(state.store.profilePath, { recursive: true });
+  // Read trace toggle (env wins, then setting; default on) and init the log.
+  try {
+    const envT = process.env.FTR10_TRACE;
+    const cfgT = vscode.workspace.getConfiguration('ftr10').get<boolean>('trace', true);
+    __traceEnabled = envT != null ? (envT !== '0' && envT.toLowerCase() !== 'false') : cfgT;
+  } catch (_e) { /* keep default */ }
+  __traceInit(state.store.profilePath);
+  trace('activate', { profilePath: state.store.profilePath });
 
   const themeJsonPath = path.join(state.store.profilePath, 'theme.json');
   if (!fs.existsSync(themeJsonPath)) {
@@ -172,9 +201,6 @@ export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
         persistThemeConfig();
         this.syncSessions();
       }
-      if (msg.command === 'resetBaseCard') {
-        resetBaseSession(msg.sessionId);
-      }
       if (msg.command === 'toggleBackgroundMode') {
         handleMessage(msg);
       }
@@ -186,9 +212,11 @@ export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
 
   syncSessions(): void {
     if (this._view) {
+      const cards = buildSessionCardsHtml();
       this._view.webview.postMessage({
         command: 'syncSessions',
-        cardsHtml: buildSessionCardsHtml(),
+        defaultCardsHtml: cards.defaults,
+        sessionsHtml: cards.sessions,
         accentColor: state.store.themeConfig.values['--ftr10-accent-1'] || ''
       });
       // Also re-sync active state so the badge reflects any preset changes
@@ -395,17 +423,33 @@ function handleMessage(msg: any): void {
 
 export function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string[] }): void {
   if (state.store._togglingTheme) return;
+  const __pStart = Date.now();
   const isFast = !!opts?.fast;
-  // Sanitize values: any background image expressed as a relative path or
-  // file:// URL resolves against the workbench's CDN origin (vscode-cdn.net)
-  // which cannot reach the local disk → ERR_NAME_NOT_RESOLVED. Such values can
-  // only ever come from a pre-fix saved state; force them to 'none' so we never
-  // re-emit a dead URL. (Live gallery selections are now data: URIs, which are fine.)
+  trace('persist:start', { fast: isFast, changedKeys: opts?.changedKeys });
+  // Sanitize background-image values. Backgrounds are served from the workbench
+  // origin via a symlink (~/.ftr10/backgrounds -> workbench/backgrounds) and the
+  // shim resolves url("backgrounds/<file>") to the absolute workbench URL. So:
+  //   - Normalize any url("../backgrounds/<file>") (old/pre-fix format) down to
+  //     url("backgrounds/<file>") so previously-saved sessions keep their image.
+  //   - Any OTHER relative or file:// URL cannot resolve → force 'none'.
   const values: Record<string, string> = {};
   for (const [k, v] of Object.entries(state.store.themeConfig.values)) {
     let val = String(v);
     if (k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') {
-      if (/^\s*url\(["']?\s*(\.\.\/|file:\/\/)/i.test(val)) val = 'none';
+      const bgIdx = val.indexOf('backgrounds/');
+      if (bgIdx !== -1) {
+        // Rewrite to the clean symlinked form regardless of any ../ prefix.
+        const start = bgIdx + 'backgrounds/'.length;
+        let end = val.indexOf('"', start);
+        if (end === -1) end = val.indexOf("'", start);
+        if (end === -1) end = val.indexOf(')', start);
+        if (end === -1) end = val.length;
+        const fname = val.substring(start, end).trim();
+        if (fname) val = 'url("backgrounds/' + fname + '")';
+      } else if (/^\s*url\(["']?\s*(\.\.\/|\.\/|\/|file:\/\/)/i.test(val)) {
+        // A relative/absolute/file URL that is NOT a backgrounds/ path → dead. 
+        val = 'none';
+      }
     }
     values[k] = val;
   }
@@ -422,12 +466,25 @@ export function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string
   }, null, 2));
   // Fast path: only update css files, vars.json, shim.js and live relay — skip heavy token writes
   if (isFast) {
-    writeColorsCss(values, opts?.changedKeys);
-    writeVarsJson(state.store.profilePath, { ...state.store.themeConfig, values });
-    generateShim(state.store.profilePath, { ...state.store.themeConfig, values });
-    pushVarsLive(values);
+    let s = Date.now();
+    writeColorsCss(values, opts?.changedKeys); trace('persist:writeColorsCss', { ms: Date.now() - s }); s = Date.now();
+    writeVarsJson(state.store.profilePath, { ...state.store.themeConfig, values }); trace('persist:writeVarsJson', { ms: Date.now() - s }); s = Date.now();
+    // The shim only contains static CSS/fonts/thpace — it does NOT depend on per-card
+    // vars (those arrive via vars.json). Regenerating it on every live color/card switch
+    // rewrites 300KB and forces the workbench to re-fetch+re-apply — the main source of
+    // the "switch cards → hang + lag" symptom. Only regenerate when something the shim
+    // actually embeds changed: a font var, or the cssImports list.
+    const fontChanged = (opts?.changedKeys || []).some(k => k.endsWith('-font'));
+    const importsChanged = JSON.stringify(state.store.themeConfig.cssImports) !== JSON.stringify(({ ...state.store.themeConfig, values }).cssImports);
+    if (fontChanged || importsChanged) {
+      generateShim(state.store.profilePath, { ...state.store.themeConfig, values }); trace('persist:generateShim', { ms: Date.now() - s }); s = Date.now();
+    } else {
+      trace('persist:generateShim', { ms: 0, skipped: true });
+    }
+    pushVarsLive(values); trace('persist:pushVarsLive', { ms: Date.now() - s }); s = Date.now();
     // still update editor webview UI but not full sync
-    updateWebviewUI();
+    updateWebviewUI(); trace('persist:updateWebviewUI', { ms: Date.now() - s });
+    trace('persist:done', { fast: true, totalMs: Date.now() - __pStart });
     return;
   }
   writeColorsCss(values, opts?.changedKeys);
@@ -479,28 +536,19 @@ function updateWebviewUI(): void {
   if (state.store.panel) {
     const bgModeMap: Record<string, string> = {};
     for (const p of THEME_PRESETS) { bgModeMap[p.id] = getPresetBgMode(p.id); }
-    // Background gallery: read image files at <globalConfig>/backgrounds and
-    // ship them as inline base64 data: URIs. The webview is an isolated
-    // origin whose asWebviewUri() resolves to an unreachable CDN in this
-    // code-server setup, so a plain URL 404s (ERR_NAME_NOT_RESOLVED).
-    // data: URIs need no external host and always load.
+    // Background gallery: send webview-uris to the symlinked backgrounds dir.
+    // The webview's localResourceRoots include ~/.ftr10, so asWebviewUri()
+    // resolves to a reachable resource URL — no base64 needed (avoids encoding
+    // every background on every sync, which froze the panel).
     const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
-    let bgImages: { name: string; dataUri: string }[] = [];
+    let bgImages: { name: string; uri: string }[] = [];
     try {
-      if (fs.existsSync(bgDir)) {
+      const wv = state.store.panel?.webview;
+      if (wv && fs.existsSync(bgDir)) {
         bgImages = fs.readdirSync(bgDir)
           .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
           .sort((a, b) => a.localeCompare(b))
-          .map(f => {
-            const mime = /\.svg$/i.test(f) ? 'image/svg+xml'
-              : /\.png$/i.test(f) ? 'image/png'
-              : /\.gif$/i.test(f) ? 'image/gif'
-              : /\.webp$/i.test(f) ? 'image/webp'
-              : /\.avif$/i.test(f) ? 'image/avif'
-              : 'image/jpeg';
-            const b64 = fs.readFileSync(path.join(bgDir, f)).toString('base64');
-            return { name: f, dataUri: 'data:' + mime + ';base64,' + b64 };
-          });
+          .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
       }
     } catch { /* ignore — gallery simply empty */ }
     state.store.panel.webview.postMessage({
@@ -550,15 +598,16 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   // Gather initial data at panel-creation time and bake it directly into the HTML.
   // This mirrors the pattern used by getSidebarHtml() and ensures the webview renders
   // real config/palette data on the very first paint — before any postMessage round-trip.
-  let _initBgImages: { name: string; dataUri: string }[] = [];
+  let _initBgImages: { name: string; uri: string }[] = [];
   try {
     const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
-    if (fs.existsSync(bgDir)) {
+    const _wv = state.store.CodexPanel?.webview;
+    if (_wv && fs.existsSync(bgDir)) {
       _initBgImages = fs.readdirSync(bgDir)
         .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
         .sort((a, b) => a.localeCompare(b))
         .slice(0, 20)
-        .map(f => ({ name: f, dataUri: '' }));
+        .map(f => ({ name: f, uri: _wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
     }
   } catch (e) { console.error('FTR10: Failed to read background images for Architect panel:', e); }
   // sections: the webview hydration only reads config.sections; sanitizeConfigForWebview
@@ -597,15 +646,16 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   setTimeout(() => {
     try {
       if (!isPanelAlive(state.store.CodexPanel)) { return; }
-      let bgImages: { name: string; dataUri: string }[] = [];
+      let bgImages: { name: string; uri: string }[] = [];
       try {
         const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
-        if (fs.existsSync(bgDir)) {
+        const wv = state.store.CodexPanel?.webview;
+        if (wv && fs.existsSync(bgDir)) {
           bgImages = fs.readdirSync(bgDir)
             .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
             .sort((a, b) => a.localeCompare(b))
             .slice(0, 20)
-            .map(f => ({ name: f, dataUri: '' }));
+            .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
         }
       } catch {}
       const safeConfig = sanitizeConfigForWebview(state.store.themeConfig);
@@ -615,28 +665,30 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   }, 350);
 
   state.store.CodexPanel.webview.onDidReceiveMessage((msg: any) => {
+    // Forwarded trace events from the Architect webview / shim relay.
+    if (msg.command === 'trace') {
+      trace(msg.event || 'webview-event', msg.data, msg.source || 'architect');
+      return;
+    }
+    if (msg.command !== 'CodexUpdate') { trace('msg:' + msg.command, undefined, 'architect'); }
     if (msg.command === 'CodexUpdate' && Array.isArray(msg.colors)) {
       state.store.sidebarProvider?.pushCodexColors(msg.colors);
     }
 
     if (msg.command === 'getConfig') {
       const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
-      let bgImages: { name: string; dataUri: string }[] = [];
+      // Send webview-uris to the symlinked backgrounds (no base64). The
+      // Architect webview's localResourceRoots include ~/.ftr10, so
+      // asWebviewUri() resolves to a reachable resource URL. This avoids
+      // base64-encoding every background on every getConfig (perf/freeze).
+      let bgImages: { name: string; uri: string }[] = [];
       try {
-        if (fs.existsSync(bgDir)) {
+        const wv = state.store.CodexPanel?.webview;
+        if (wv && fs.existsSync(bgDir)) {
           bgImages = fs.readdirSync(bgDir)
             .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
             .sort((a, b) => a.localeCompare(b))
-            .map(f => {
-              const mime = /\.svg$/i.test(f) ? 'image/svg+xml'
-                : /\.png$/i.test(f) ? 'image/png'
-                : /\.gif$/i.test(f) ? 'image/gif'
-                : /\.webp$/i.test(f) ? 'image/webp'
-                : /\.avif$/i.test(f) ? 'image/avif'
-                : 'image/jpeg';
-              const b64 = fs.readFileSync(path.join(bgDir, f)).toString('base64');
-              return { name: f, dataUri: 'data:' + mime + ';base64,' + b64 };
-            });
+            .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
         }
       } catch { /* ignore */ }
       state.store.CodexPanel?.webview.postMessage({ command: 'architectConfig', config: state.store.themeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: state.store.themeConfig.activePreset, values: state.store.themeConfig.values, bgImages });
@@ -679,13 +731,13 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
         ),
         createdAt: existing?.createdAt ?? Date.now(),
         updatedAt: Date.now(),
-        isBase: existing?.isBase ?? false,
-        basePresetId: existing?.basePresetId
+        isBase: false, // Saving a changed default (base) card promotes it to a regular session card
+        basePresetId: existing?.isBase ? undefined : existing?.basePresetId
       };
       state.store.themeConfig.architectSessions[id] = session;
       persistThemeConfig();
       state.store.sidebarProvider?.syncSessions();
-      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name });
+      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name, session });
       vscode.window.showInformationMessage(`Session "${session.name}" saved.`);
     }
 
@@ -734,7 +786,7 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
       state.store.themeConfig.values = { ...state.store.themeConfig.values, ...varDiff };
       persistThemeConfig();
       state.store.sidebarProvider?.syncSessions();
-      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name });
+      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name, session });
       vscode.window.showInformationMessage(`"${session.name}" applied.`);
     }
   }, undefined, context.subscriptions);
@@ -774,6 +826,19 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
     if (fs.existsSync(bgDirSrc)) {
       try { if (fs.existsSync(bgDirLink)) fs.unlinkSync(bgDirLink); } catch (_e) { /* ignore */ }
       try { fs.symlinkSync(bgDirSrc, bgDirLink); } catch (_e) { /* ignore */ }
+    }
+
+    // Symlink the fonts dir so the workbench origin can serve @font-face files.
+    // font_load.css declares url('../fonts/<file>.woff2'); when that CSS is inlined
+    // into the workbench <head>, the relative path resolves against the CDN origin
+    // (no ../fonts there) and 404s -> the browser silently falls back to monospace
+    // -> "fonts not changing". The shim rewrites those url()s to __base+'fonts/<file>'
+    // (see generateShim) which reaches this symlink.
+    const fontDirSrc = path.join(profilePathArg, 'fonts');
+    const fontDirLink = path.join(workbenchDir, 'fonts');
+    if (fs.existsSync(fontDirSrc)) {
+      try { if (fs.existsSync(fontDirLink)) fs.unlinkSync(fontDirLink); } catch (_e) { /* ignore */ }
+      try { fs.symlinkSync(fontDirSrc, fontDirLink); } catch (_e) { /* ignore */ }
     }
 
     let html = fs.readFileSync(workbenchHtmlPath, 'utf8');

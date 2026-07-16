@@ -7,7 +7,7 @@ import type { ThemeConfig } from './types';
 import { buildWebviewVarsCss } from './shim';
 import * as state from './state';
 
-export function buildSessionCardsHtml(activePreset?: string): string {
+export function buildSessionCardsHtml(activePreset?: string): { defaults: string; sessions: string } {
   const all = Object.values(state.store.themeConfig.architectSessions)
     .sort((a, b) => {
       // Base cards first, ordered by preset list, then user cards by updatedAt desc
@@ -20,12 +20,8 @@ export function buildSessionCardsHtml(activePreset?: string): string {
       }
       return b.updatedAt - a.updatedAt;
     });
-  if (all.length === 0) {
-    return `<div class="empty-state">No saved sessions yet.<br>Open the Architect, design a palette, and click <strong>Save</strong> to create your first card.</div>`;
-  }
   const gearIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.7 1.3-2-.8-.9-2 1.3-.7-.2zM9.4 1l.5 2.4L12 2.1l2 2-1.4 2.1 2.4.5v2.8l-2.4.5L14 12l-2 2-2.1-1.4-.5 2.4H6.6l-.5-2.4L4 14l-2-2 1.4-2.1L1 9.4V6.6l2.4-.5L2.1 4l2-2 2.1 1.4.5-2.4h2.8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-1a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>`;
-  const resetIcon = `↺`;
-  return all.map(s => {
+  const renderCard = (s: any): string => {
     const presetId = `arch-${s.id}`;
     const isActive = (activePreset ?? state.store.themeConfig.activePreset) === presetId;
     const c1 = escapeHtml(s.savedColors[0] || '#555555');
@@ -41,21 +37,31 @@ export function buildSessionCardsHtml(activePreset?: string): string {
         </div>
         <div class="card-btns">
           <button class="gear-btn edit-btn" data-session-id="${escapeHtml(s.id)}" title="Edit in Architect">${gearIcon}</button>
-          ${isBase ? `<button class="reset-btn" data-session-id="${escapeHtml(s.id)}" title="Reset to default">${resetIcon}</button>` : `<button class="del-btn" data-session-id="${escapeHtml(s.id)}" title="Delete session">✕</button>`}
+          ${isBase ? '' : `<button class="del-btn" data-session-id="${escapeHtml(s.id)}" title="Delete session">✕</button>`}
         </div>
       </div>
       <div class="card-name">${escapeHtml(s.name)}${isBase ? ' <span class="base-badge">Base</span>' : ''}</div>
       <div class="card-desc">${escapeHtml(s.harmony)} harmony${isBase && s.basePresetId ? ` • ${escapeHtml(s.basePresetId)}` : ''}</div>
       ${isActive ? '<div class="card-active-badge">Active</div>' : ''}
     </div>`;
-  }).join('');
+  };
+  const defaults = all.filter(s => !!s.isBase).map(renderCard);
+  const sessions = all.filter(s => !s.isBase).map(renderCard);
+  return {
+    defaults: defaults.length
+      ? defaults.join('')
+      : `<div class="empty-state">No default cards. Reset the extension to restore them.</div>`,
+    sessions: sessions.length
+      ? sessions.join('')
+      : `<div class="empty-state">No saved sessions yet.<br>Open the Architect, design a palette, and click <strong>Save</strong> to create your first card.</div>`
+  };
 }
 
 function buildPresetCardsHtml(_activePreset?: string): string { return ''; }
 
 export function getSidebarHtml(activePreset?: string, accentColor?: string): string {
   const accent = accentColor || '#7c3aed';
-  const sessionCards = buildSessionCardsHtml(activePreset);
+  const { defaults: defaultCards, sessions: sessionCards } = buildSessionCardsHtml(activePreset);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -120,7 +126,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
 
   .card-btns { display: flex; gap: 4px; align-items: center; }
 
-  .gear-btn, .del-btn, .reset-btn {
+  .gear-btn, .del-btn {
     display: grid; place-items: center;
     width: 26px; height: 26px;
     border-radius: 6px;
@@ -131,9 +137,8 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
     transition: background 0.15s, color 0.15s;
     font-size: 11px;
   }
-  .gear-btn:hover, .del-btn:hover, .reset-btn:hover { background: #ffffff1a; color: var(--vscode-foreground); }
+  .gear-btn:hover, .del-btn:hover { background: #ffffff1a; color: var(--vscode-foreground); }
   .del-btn:hover { color: #ff5c75; }
-  .reset-btn:hover { color: #7bc8ff; }
 
   .card-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
   .card-desc { font-size: 11px; opacity: 0.55; line-height: 1.4; }
@@ -195,6 +200,19 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
     font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
     text-transform: uppercase; opacity: 0.35; margin-bottom: 6px; margin-top: 10px;
   }
+
+  /* Collapsible card sections (Default Cards / Sessions) */
+  .card-section { margin-top: 4px; }
+  .card-section > summary.section-label {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    user-select: none; opacity: 0.5; transition: opacity 0.15s;
+  }
+  .card-section > summary.section-label::-webkit-details-marker { display: none; }
+  .card-section > summary.section-label::before {
+    content: '▸'; font-size: 8px; transform: rotate(90deg); transition: transform 0.15s; opacity: 0.7;
+  }
+  .card-section:not([open]) > summary.section-label::before { transform: rotate(0deg); }
+  .card-section > summary.section-label:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -217,24 +235,26 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
     <span class="arch-entry-open">Open Architect &rsaquo;</span>
   </div>
 
-  <div class="section-label">Sessions</div>
-  <div class="session-list" id="sessionList">
-    ${sessionCards}
-  </div>
+  <details class="card-section" open>
+    <summary class="section-label">Default Cards</summary>
+    <div class="session-list" id="defaultCardsList">
+      ${defaultCards}
+    </div>
+  </details>
+
+  <details class="card-section" open>
+    <summary class="section-label">Sessions</summary>
+    <div class="session-list" id="sessionList">
+      ${sessionCards}
+    </div>
+  </details>
 
   <script>
     const vscode = acquireVsCodeApi();
     const _ftr10SidebarListeners = [];
     const sessionList = document.getElementById('sessionList');
+    const defaultCardsList = document.getElementById('defaultCardsList');
     function sessionListHandler(e) {
-      const resetBtn = e.target.closest('.reset-btn');
-      if (resetBtn) {
-        e.stopPropagation();
-        if (confirm('Reset this Base card to its factory defaults?')) {
-          vscode.postMessage({ command: 'resetBaseCard', sessionId: resetBtn.getAttribute('data-session-id') });
-        }
-        return;
-      }
       const editBtn = e.target.closest('.edit-btn');
       if (editBtn) {
         e.stopPropagation();
@@ -253,7 +273,9 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
       }
     }
     sessionList.addEventListener('click', sessionListHandler);
+    defaultCardsList.addEventListener('click', sessionListHandler);
     _ftr10SidebarListeners.push(() => sessionList.removeEventListener('click', sessionListHandler));
+    _ftr10SidebarListeners.push(() => defaultCardsList.removeEventListener('click', sessionListHandler));
 
     const codexCard = document.getElementById('CodexCard');
     function codexCardHandler() { vscode.postMessage({ command: 'openCodex' }); }
@@ -282,7 +304,10 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
         });
       }
       if (msg.command === 'syncSessions') {
-        document.getElementById('sessionList').innerHTML = msg.cardsHtml;
+        const dc = document.getElementById('defaultCardsList');
+        const sl = document.getElementById('sessionList');
+        if (dc) dc.innerHTML = msg.defaultCardsHtml || '';
+        if (sl) sl.innerHTML = msg.sessionsHtml || '';
         if (msg.accentColor) {
           document.documentElement.style.setProperty('--ftr10-accent-1', msg.accentColor);
         }
@@ -328,7 +353,7 @@ export function getCodexHtml(initial?: {
   simpleGroups: any[];
   activePreset?: string;
   values: Record<string, any>;
-  bgImages?: { name: string; dataUri: string }[];
+  bgImages?: { name: string; dataUri?: string; uri?: string }[];
   session?: any;
   derivedValues?: Record<string, any>;
 }): string {
@@ -1513,7 +1538,7 @@ window.__FTR10_INIT__ = ${initJson};
               <option value="circuit">Circuit</option>
               <option value="meshflow">Meshflow</option>
               <option value="playstation">Playstation</option>
-              <option value="image">Image</option>
+              <!-- image effect temporarily disabled while investigating layering/lag -->
             </select>
           </div>
         </div>
@@ -1613,7 +1638,7 @@ window.__FTR10_INIT__ = ${initJson};
             <option value="circuit">Circuit</option>
             <option value="meshflow">Meshflow</option>
             <option value="playstation">Playstation</option>
-            <option value="image">Image</option>
+            <!-- image effect temporarily disabled while investigating layering/lag -->
           </select>
         </div>
       </div>
@@ -1668,6 +1693,25 @@ window.__FTR10_INIT__ = ${initJson};
 const vscode = (typeof acquireVsCodeApi !== 'undefined')
   ? acquireVsCodeApi()
   : { postMessage: (m) => console.log('[vscode msg]', m) };
+
+// ── webview tracer ─────────────────────────────────────────────────────────
+// Forwards navigation/state events to the extension host, which appends them to
+// ~/.ftr10/logs/ftr10-trace.log alongside host + shim events (unified timeline).
+// Also mirrors to console + a local ring buffer you can grab from DevTools:
+//   window.__ftr10WvTrace  (array)   /   __ftr10DumpTrace()
+window.__ftr10WvTrace = window.__ftr10WvTrace || [];
+function __wvTrace(event, data) {
+  try {
+    const entry = { t: Date.now(), src: 'architect', ev: event };
+    if (data) entry.d = data;
+    window.__ftr10WvTrace.push(entry);
+    if (window.__ftr10WvTrace.length > 500) window.__ftr10WvTrace.shift();
+    if (console && console.debug) console.debug('[FTR10-TRACE]', event, data || '');
+    vscode.postMessage({ command: 'trace', source: 'architect', event, data });
+  } catch (_e) {}
+}
+window.__ftr10DumpTrace = function() { try { console.table(window.__ftr10WvTrace); } catch (_e) { console.log(window.__ftr10WvTrace); } return window.__ftr10WvTrace; };
+__wvTrace('architect-script-init', {});
 
 // ── wheel setup ──────────────────────────────────────────────────────────────
 const canvas = document.getElementById('hueWheel');
@@ -1820,6 +1864,27 @@ function generateHarmony() {
 }
 
 // ── update all UI for new palette/hue ────────────────────────────────────────
+// Debounced live push of the current palette's derived role colors to the
+// workbench. Called on every palette finalize (drag end, click, harmony,
+// random) so the theme recolors instantly without an explicit Save (Item 1, 1A).
+let _paletteLiveTimer = null;
+function schedulePaletteLiveUpdate() {
+  clearTimeout(_paletteLiveTimer);
+  _paletteLiveTimer = setTimeout(() => {
+    const roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
+    const next = { ...varsState.values };
+    roleVars.forEach((v, i) => {
+      const col = palette[i];
+      if (col && /^#[0-9a-fA-F]{6,8}$/.test(col)) {
+        // Mirror deriveCodexPreset tier-1 alpha conventions.
+        next[v] = i < 4 ? (i === 0 ? col + 'd4' : col) : (i === 4 ? col + '30' : col + '18');
+      }
+    });
+    varsState.values = next;
+    vscode.postMessage({ command: 'liveUpdate', values: varsState.values });
+  }, 300);
+}
+
 function updateUI(live = false) {
   palette = generateHarmony().map((col, i) => overrides[i] !== undefined ? overrides[i] : col);
   drawWheel();
@@ -1869,6 +1934,8 @@ function updateUI(live = false) {
   // Update sidebar card swatches to reflect current palette on every finalize
   if (!live) {
     vscode.postMessage({ command: 'CodexUpdate', colors: palette });
+    // Recolor the workbench live from the new palette (instant, pre-save).
+    schedulePaletteLiveUpdate();
   }
 }
 
@@ -2172,7 +2239,7 @@ const varsState = { simpleGroups: [], values: {}, sections: [], advanced: false 
 
 const FONT_OPTIONS_A = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
 const SELECT_OPTIONS_A = {
-      '--ftr10-bg-effect': ['none', 'image', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
+      '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
   '--ftr10-code-font': FONT_OPTIONS_A, '--ftr10-font-activitybar': FONT_OPTIONS_A,
   '--ftr10-font-sidebar': FONT_OPTIONS_A, '--ftr10-font-panel-bottom': FONT_OPTIONS_A,
   '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A
@@ -2233,7 +2300,9 @@ function renderVarsPanel() {
 let _varsLiveTimer = null;
 function scheduleVarsLiveUpdate() {
   clearTimeout(_varsLiveTimer);
+  __wvTrace('liveUpdate:scheduled', { keys: Object.keys(varsState.values).length });
   _varsLiveTimer = setTimeout(() => {
+    __wvTrace('liveUpdate:sent', { effect: varsState.values['--ftr10-bg-effect'] });
     vscode.postMessage({ command: 'liveUpdate', values: varsState.values });
   }, 400);
 }
@@ -2312,11 +2381,10 @@ document.getElementById('varsToggleBtn').addEventListener('click', () => {
 // ── session messages from extension ───────────────────────────────────────────
 window.addEventListener('message', (e) => {
   const msg = e.data;
-  if (msg.command === 'loadSession' && msg.session) {
+  function applySessionToUI(s, derivedValues) {
     // Cancel any pending deferred update from the previous session before switching
     clearTimeout(_varsLiveTimer);
     _varsLiveTimer = null;
-    const s = msg.session;
     currentSessionId = s.id;
     sessionName = s.name;
     baseHue = typeof s.baseHue === 'number' ? s.baseHue : baseHue;
@@ -2339,13 +2407,15 @@ window.addEventListener('message', (e) => {
     // the user's edits even when the card isn't the active preset.
     if (s.varOverrides) { Object.assign(varsState.values, s.varOverrides); }
     // Update vars panel if derived values provided (active preset path)
-    if (msg.derivedValues) {
+    if (derivedValues) {
       // Live (derived) values MUST win over stale session varOverrides, otherwise
       // a re-applied override silently reverts the user's current UI edits.
-      varsState.values = { ...(s.varOverrides || {}), ...msg.derivedValues, '--ftr10-bg-effect': s.bgEffect || varsState.values['--ftr10-bg-effect'] || 'nebula', '--ftr10-thpace-enabled': s.thpaceEnabled || varsState.values['--ftr10-thpace-enabled'] || 'true' };
+      varsState.values = { ...(s.varOverrides || {}), ...derivedValues, '--ftr10-bg-effect': s.bgEffect || varsState.values['--ftr10-bg-effect'] || 'nebula', '--ftr10-thpace-enabled': s.thpaceEnabled || varsState.values['--ftr10-thpace-enabled'] || 'true' };
       renderVarsPanel();
     } else if (s.varOverrides) {
       // Card reopened but not the active preset — still render the stored edits
+      renderVarsPanel();
+    } else {
       renderVarsPanel();
     }
     syncBgToggleState(varsState.values);
@@ -2354,11 +2424,22 @@ window.addEventListener('message', (e) => {
     vscode.postMessage({ command: 'liveUpdate', values: varsState.values });
     updateUI(false);
   }
+
+  if (msg.command === 'loadSession' && msg.session) {
+    applySessionToUI(msg.session, msg.derivedValues);
+  }
   if (msg.command === 'sessionSaved') {
     currentSessionId = msg.sessionId;
     if (msg.name) {
       const ni = document.getElementById('sessionNameInput');
       if (ni) ni.value = msg.name;
+    }
+    // Refresh the Vars panel with the just-saved card's values so the user sees
+    // their saved changes live (no need to leave and re-enter the session).
+    if (msg.session) {
+      applySessionToUI(msg.session, undefined);
+    } else {
+      renderVarsPanel();
     }
   }
   if (msg.command === 'activePresetChanged') {
@@ -2487,11 +2568,14 @@ function renderQuickPanels() {
 
 // ── bg image gallery ─────────────────────────────────────────────────────
 // Renders a picker of available background images. Shown only when the
-// selected effect is "image". Selection sets --ftr10-bg-image to a base64
-// data: URI (same as the thumbnail) so effects.css paints it INLINE. The
-// workbench CSS origin resolves "url(../backgrounds/x)" against the CDN host
-// (vscode-cdn.net) which cannot reach the local filesystem
-// (ERR_NAME_NOT_RESOLVED) — a data: URI needs no network and always paints.
+// selected effect is "image". Selection sets --ftr10-bg-image to a plain
+// url("backgrounds/<file>") — the workbench origin serves backgrounds/
+// via a symlink (~/.ftr10/backgrounds -> workbench/backgrounds), and the
+// shim's applyVars() resolves "backgrounds/X" to the absolute workbench
+// URL. We deliberately do NOT embed a base64 data: URI: that bloats
+// vars.json/theme.json (polling lag) and forces the host to base64-encode
+// every background on every config sync. Thumbnails use the webview-uri
+// (asWebviewUri) the host sends, which reaches the same symlinked file.
 let __bgImages = [];
 function __bgDataUriByName(name) {
   for (const item of __bgImages) { if (item && item.name === name) return item.dataUri || ''; }
@@ -2512,24 +2596,33 @@ function showPanelError(text) {
 }
 function setBgImageFromGallery(name) {
   if (name) {
-    const uri = __bgDataUriByName(name);
-    varsState.values['--ftr10-bg-image'] = uri ? 'url("' + uri + '")' : 'none';
+    // Store the plain symlinked path. The workbench serves backgrounds/ via a
+    // symlink and the shim's applyVars() resolves it to the absolute URL. No
+    // data: URI — keeps vars.json/theme.json tiny and avoids host base64.
+    varsState.values['--ftr10-bg-image'] = 'url("backgrounds/' + name + '")';
   } else {
     varsState.values['--ftr10-bg-image'] = 'none';
   }
   scheduleVarsLiveUpdate();
   syncBgImageGallery();
 }
+function __bgFilenameFromValue(v) {
+  // Extract "<file>" from url("backgrounds/<file>") / url('backgrounds/<file>').
+  if (!v || v === 'none') return '';
+  const i = v.indexOf('backgrounds/');
+  if (i === -1) return '';
+  const s = i + 'backgrounds/'.length;
+  let e = v.indexOf('"', s);
+  if (e === -1) e = v.indexOf("'", s);
+  if (e === -1) e = v.indexOf(')', s);
+  if (e === -1) e = v.length;
+  return v.substring(s, e).trim();
+}
 function syncBgImageGallery() {
   const currentEffect = (varsState.values['--ftr10-bg-effect'] || 'none').trim().toLowerCase();
   const curImg = (varsState.values['--ftr10-bg-image'] || 'none');
-  // active item is matched by data-URI prefix (the stored value is a data: URI)
-  let activeFile = '';
-  if (curImg && curImg !== 'none') {
-    for (const item of __bgImages) {
-      if (item && item.dataUri && curImg.indexOf(item.dataUri) === 0) { activeFile = item.name; break; }
-    }
-  }
+  // active item is matched by the backgrounds/<file> name in the stored value
+  const activeFile = __bgFilenameFromValue(curImg);
   for (const sfx of ['', '_below']) {
     const host = document.getElementById('bgImgGallery' + sfx);
     if (!host) continue;
@@ -2542,9 +2635,9 @@ function syncBgImageGallery() {
     let html = '';
     for (const item of __bgImages) {
       const name = item && item.name ? item.name : '';
-      const dataUri = item && item.dataUri ? item.dataUri : '';
+      const src = (item && item.uri) ? item.uri : (item && item.dataUri ? item.dataUri : '');
       const sel = name === activeFile ? ' selected' : '';
-      html += "<button type='button' class='bg-img-thumb" + sel + "' data-bgimg='" + escapeHtmlA(name) + "' title='" + escapeHtmlA(name) + "'><img src='" + dataUri + "' alt=''></button>";
+      html += "<button type='button' class='bg-img-thumb" + sel + "' data-bgimg='" + escapeHtmlA(name) + "' title='" + escapeHtmlA(name) + "'><img src='" + src + "' alt=''></button>";
     }
     host.innerHTML = html;
     host.querySelectorAll('[data-bgimg]').forEach(function (btn) {
@@ -3687,7 +3780,7 @@ export function getEditorHtml(cfg: ThemeConfig): string {
 
     const FONT_OPTIONS = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
     const SELECT_OPTIONS = {
-      '--ftr10-bg-effect': ['none', 'image', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
+      '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
       '--ftr10-body-font': FONT_OPTIONS,
       '--ftr10-heading-font': FONT_OPTIONS,
       '--ftr10-code-font': FONT_OPTIONS,

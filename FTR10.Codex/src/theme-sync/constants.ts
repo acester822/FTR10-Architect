@@ -122,9 +122,7 @@ import popoverUniverse from '../theme-presets/popover-universe';
 import emeraldForest from '../theme-presets/emerald-forest';
 import acesCodepunk from '../theme-presets/aces-codepunk';
 import classicMonokai from '../theme-presets/classic-monokai';
-import classicNight from '../theme-presets/classic-night';
 import classicAtomMaterial from '../theme-presets/classic-atom-material';
-import classicSolarizedDark from '../theme-presets/classic-solarized-dark';
 
 export const THEME_PRESETS: ThemePreset[] = [
   neonMatrix,
@@ -139,9 +137,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   emeraldForest,
   acesCodepunk,
   classicMonokai,
-  classicNight,
   classicAtomMaterial,
-  classicSolarizedDark,
 ];
 // ═══════════════════════════════════════════════════════════════════
 // Default values
