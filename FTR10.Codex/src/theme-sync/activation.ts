@@ -172,7 +172,7 @@ export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true };
-    webviewView.webview.html = getSidebarHtml(state.store.themeConfig.activePreset, state.store.themeConfig.values['--ftr10-accent-1']);
+    webviewView.webview.html = getSidebarHtml(state.store.themeConfig.activePreset, state.store.themeConfig.values['--ftr10-accent-1'], state.store.themeConfig.values);
 
     webviewView.onDidChangeVisibility(() => {
       if (!webviewView.visible && state.store.CodexPanel) {

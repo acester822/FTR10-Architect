@@ -59,9 +59,17 @@ export function buildSessionCardsHtml(activePreset?: string): { defaults: string
 
 function buildPresetCardsHtml(_activePreset?: string): string { return ''; }
 
-export function getSidebarHtml(activePreset?: string, accentColor?: string): string {
+export function getSidebarHtml(activePreset?: string, accentColor?: string, values?: Record<string, string>): string {
   const accent = accentColor || '#7c3aed';
   const { defaults: defaultCards, sessions: sessionCards } = buildSessionCardsHtml(activePreset);
+  // Bake the theme's font (and layout) vars onto :root so the sidebar cards render
+  // with the configured font on first paint. The sidebar webview is isolated from the
+  // workbench :root, and relayVars only arrives on live edits — without seeding these
+  // here, .theme-card resolves --ftr10-font-sidebar to undefined and falls back to
+  // sans-serif before any postMessage round-trip completes.
+  const _sideFontKeys = ['--ftr10-font-sidebar','--ftr10-font-body','--ftr10-font-heading','--ftr10-font-code','--ftr10-body-font','--ftr10-heading-font','--ftr10-code-font'];
+  let _rootVars = '--ftr10-accent-1: ' + escapeHtml(accent) + ';';
+  if (values) { for (const k of _sideFontKeys) { const v = values[k]; if (v) _rootVars += ' ' + k + ': ' + escapeHtml(v) + ';'; } }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -71,7 +79,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string): str
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
-  :root { --ftr10-accent-1: ${escapeHtml(accent)}; }
+  :root { ${_rootVars} }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Space Mono', monospace;
@@ -388,11 +396,9 @@ window.__FTR10_INIT__ = ${initJson};
   body, html {
     height: 100%;
     font-family: var(--ftr10-font-panel-top, var(--ftr10-body-font, 'Share Tech Mono', monospace));
-    /* Explicit dark background: the Architect panel uses a dark cyberpunk aesthetic
-       throughout.  Without this the transparent default inherits the VS Code webview
-       background which can be white/light in light themes, making all dark-colored
-       elements (and the canvas wheel) nearly invisible. */
-    background: #0a0a0f;
+    /* Transparent so the panel inherits the workbench background instead of painting
+       its own opaque layer. */
+    background: transparent;
     color: #b0d0ff;
     overflow-x: hidden;
   }
