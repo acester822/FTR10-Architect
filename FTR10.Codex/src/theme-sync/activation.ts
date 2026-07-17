@@ -874,6 +874,15 @@ async function patchWorkbench(profilePathArg: string, silent = false): Promise<v
       const v = parsed && parsed.values && parsed.values['--ftr10-bg'];
       if (typeof v === 'string' && v.trim()) bgColor = v.trim();
     } catch (_e) { /* fall back to near-black */ }
+    // Cache-bust stamp: effects.css is inlined into shim.js at generation time, so
+    // when the user edits effects.css the stale shim.js stays cached in the browser
+    // and the OLD effect flashes before the fresh shim loads. Stamp the shim <script>
+    // src with effects.css's mtime so the browser always fetches the current shim.
+    let effectsMtime = '0';
+    try {
+      const ep = path.join(profilePathArg, 'css.files', 'effects.css');
+      effectsMtime = String(Math.floor(fs.statSync(ep).mtimeMs));
+    } catch (_e) {}
     const PREPAINT_ID = 'ftr10-prepaint';
     // Critical override layer: force VS Code's opaque default surfaces transparent
     // during boot. Without this, workbench parts (editor/sidebar/panels) paint with
@@ -891,7 +900,7 @@ async function patchWorkbench(profilePathArg: string, silent = false): Promise<v
         ).join(' ');
       }
     } catch (_e) {}
-    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{visibility:hidden!important}.ftr10-booting .monaco-workbench.ftr10-boot-in{visibility:visible!important}</style>`;
+    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{visibility:hidden!important}.ftr10-booting .monaco-workbench.ftr10-boot-in{visibility:visible!important}#ftr10-splash{position:fixed;inset:0;z-index:2147483647;background-color:${bgColor};display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;transition:opacity .45s ease;pointer-events:none}#ftr10-splash .ftr10-splash-circuit{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(rgba(120,170,255,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(120,170,255,.12) 1px,transparent 1px);background-size:26px 26px;mask-image:radial-gradient(circle at center,transparent 30%,#000 75%);-webkit-mask-image:radial-gradient(circle at center,transparent 30%,#000 75%)}#ftr10-splash .ftr10-splash-ring{width:42px;height:42px;border:3px solid rgba(140,180,255,.25);border-top-color:rgba(150,190,255,.9);border-radius:50%;animation:ftr10-spin 1s linear infinite}@keyframes ftr10-spin{to{transform:rotate(360deg)}}#ftr10-splash.ftr10-splash-hidden{opacity:0!important}</style>`;
     // Remove any prior copy so we always write the current bg color.
     html = html.replace(new RegExp('<style id="' + PREPAINT_ID + '">.*?</style>\\s*', 'gis'), '');
     if (html.includes('</head>')) {
@@ -901,10 +910,21 @@ async function patchWorkbench(profilePathArg: string, silent = false): Promise<v
       // already exists.
       fs.writeFileSync(workbenchHtmlPath, html);
     }
+    // Boot splash overlay: a full-screen circuit + spinner that paints on first
+    // paint (it lives in workbench.html, not the shim) and is removed by the shim
+    // once the fresh, cache-busted shim has applied. This hides the stale-effect
+    // flash and the workbench build behind one intentional screen.
+    const SPLASH_ID = 'ftr10-splash';
+    const SPLASH_HTML = `<div id="${SPLASH_ID}"><div class="ftr10-splash-circuit"></div><div class="ftr10-splash-ring"></div></div>`;
+    html = html.replace(new RegExp('<div id="' + SPLASH_ID + '">[\\s\\S]*?</div>\\s*', 'gi'), '');
+    if (html.includes('<body')) {
+      html = html.replace(/(<body[^>]*>)/, `$1\n  ${SPLASH_HTML}`);
+      fs.writeFileSync(workbenchHtmlPath, html);
+    }
 
     // Fix (2026-07-15): correct tag is {{WORKBENCH_WEB_BASE_URL}}/.../shim.js, not ./shim.js
     // Clean up any old/broken injections first to prevent duplicates and broken relative paths.
-    const CORRECT_SHIM_TAG = '<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js"></script>';
+    const CORRECT_SHIM_TAG = `<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js?t=${effectsMtime}"></script>`;
     const SHIM_TAG_REGEX = /<script[^>]*shim\.js[^>]*>\s*<\/script>\s*/gi;
     const hadOld = SHIM_TAG_REGEX.test(html);
     if (hadOld) {

@@ -110,13 +110,22 @@ __stage('shim-start');
 // We use visibility:hidden (not opacity) because VS Code's boot animation drives
 // .monaco-workbench opacity via inline styles that beat an opacity:0 !important
 // rule in the cascade. visibility:hidden is not fought by that animation.
+// The ftr10-splash overlay (in workbench.html) covers the whole boot; we fade it
+// out + remove it here once the fresh, cache-busted shim has applied.
 try { document.documentElement.classList.add('ftr10-booting'); } catch (_e) {}
 function __bootReveal() {
-  try { document.documentElement.classList.remove('ftr10-booting'); } catch (_e) {}
+  try {
+    document.documentElement.classList.remove('ftr10-booting');
+    var splash = document.getElementById('ftr10-splash');
+    if (splash) {
+      splash.classList.add('ftr10-splash-hidden');
+      setTimeout(function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+    }
+  } catch (_e) {}
 }
 if (document.readyState === 'complete') { __bootReveal(); }
 else { window.addEventListener('load', __bootReveal); }
-// Fallback: never leave the workbench hidden if load is slow/never fires.
+// Fallback: never leave the workbench/splash stuck if load is slow/never fires.
 setTimeout(__bootReveal, 2000);
 // Log the very next paint after the shim runs (stage 1 visual).
 try { requestAnimationFrame(function() { __stage('raf-after-shim'); }); } catch (_e) {}
