@@ -47,6 +47,10 @@ export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
     // origin (which has no ../fonts) -> 404 -> monospace fallback. The workbench
     // serves fonts/ via a symlink (see patchWorkbench), so __base + 'fonts/X' works.
     content = content.replace(/url\((['"]?)(?:\.\.\/)?fonts\//g, "url($1__FTR10_FONTBASE__fonts/");
+    // Strip :root { ... } blocks from inlined CSS — they duplicate the live
+    // !important :root that applyVars writes, causing a flash of the wrong var
+    // values on first paint. Only applyVars' :root should set theme variables.
+    content = content.replace(/:root\s*\{[^}]*\}\s*/g, '');
     return { id, content };
   });
   function readJsSafe(relPath: string): string {
