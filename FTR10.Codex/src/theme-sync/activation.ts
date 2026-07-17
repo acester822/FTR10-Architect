@@ -875,7 +875,23 @@ async function patchWorkbench(profilePathArg: string, silent = false): Promise<v
       if (typeof v === 'string' && v.trim()) bgColor = v.trim();
     } catch (_e) { /* fall back to near-black */ }
     const PREPAINT_ID = 'ftr10-prepaint';
-    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}</style>`;
+    // Critical override layer: force VS Code's opaque default surfaces transparent
+    // during boot. Without this, workbench parts (editor/sidebar/panels) paint with
+    // VS Code's DEFAULT theme backgrounds for ~750ms before main.css's :root override
+    // applies — that's the "circuit + dark tint" middle stage. Baking these literal
+    // `transparent/#00000000 !important` rules makes parts transparent the instant
+    // they appear, so the circuit shows through from first paint.
+    let critOverrides = '';
+    try {
+      const mainCss = fs.readFileSync(path.join(profilePathArg, 'css.files', 'main.css'), 'utf8');
+      const m = mainCss.match(/:root\s*\{([\s\S]*?)\}/);
+      if (m) {
+        critOverrides = m[1].split('\n').map(l => l.trim()).filter(l =>
+          l.includes('!important') && (l.toLowerCase().includes('background') || l.toLowerCase().includes('transparent'))
+        ).join(' ');
+      }
+    } catch (_e) {}
+    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{opacity:0!important;transition:opacity .28s ease}.ftr10-booting .monaco-workbench.ftr10-boot-in{opacity:1!important}</style>`;
     // Remove any prior copy so we always write the current bg color.
     html = html.replace(new RegExp('<style id="' + PREPAINT_ID + '">.*?</style>\\s*', 'gis'), '');
     if (html.includes('</head>')) {

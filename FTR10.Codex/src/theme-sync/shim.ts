@@ -47,10 +47,6 @@ export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
     // origin (which has no ../fonts) -> 404 -> monospace fallback. The workbench
     // serves fonts/ via a symlink (see patchWorkbench), so __base + 'fonts/X' works.
     content = content.replace(/url\((['"]?)(?:\.\.\/)?fonts\//g, "url($1__FTR10_FONTBASE__fonts/");
-    // Strip :root { ... } blocks from inlined CSS — they duplicate the live
-    // !important :root that applyVars writes, causing a flash of the wrong var
-    // values on first paint. Only applyVars' :root should set theme variables.
-    content = content.replace(/:root\s*\{[^}]*\}\s*/g, '');
     return { id, content };
   });
   function readJsSafe(relPath: string): string {
@@ -108,6 +104,26 @@ function __stage(name, extra) {
 }
 __trace('shim-loaded', { href: location.href });
 __stage('shim-start');
+// Boot gate: hide the workbench chrome during code-server's ~800ms DOM build so
+// it fades in all-at-once (no progressive panel "pop-in" / three-stage reveal).
+// The body+circuit paints immediately (pre-paint style); the chrome appears after.
+try { document.documentElement.classList.add('ftr10-booting'); } catch (_e) {}
+function __bootReveal() {
+  try {
+    var mw = document.querySelector('.monaco-workbench');
+    if (mw) { mw.classList.add('ftr10-boot-in'); }
+    // next frame: drop the gate so the opacity transition runs
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        document.documentElement.classList.remove('ftr10-booting');
+      });
+    });
+  } catch (_e) {}
+}
+if (document.readyState === 'complete') { __bootReveal(); }
+else { window.addEventListener('load', __bootReveal); }
+// Fallback: never leave the workbench hidden if load is slow/never fires.
+setTimeout(__bootReveal, 2000);
 // Log the very next paint after the shim runs (stage 1 visual).
 try { requestAnimationFrame(function() { __stage('raf-after-shim'); }); } catch (_e) {}
 // Log when the DOM is interactive/complete.
