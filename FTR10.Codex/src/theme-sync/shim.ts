@@ -97,7 +97,22 @@ function __trace(ev, data) {
   } catch (_e) {}
 }
 window.__ftr10Trace = function() { try { console.table(window.__ftr10TraceLog); } catch (_e) { console.log(window.__ftr10TraceLog); } return window.__ftr10TraceLog; };
+// High-res clock relative to shim execution start, so trace deltas show exactly
+// how far apart the load stages are (the "three-stage flash" investigation).
+var __ftr10T0 = (window.performance && performance.now) ? performance.now() : Date.now();
+function __ms() { var n = (window.performance && performance.now) ? performance.now() : Date.now(); return Math.round((n - __ftr10T0) * 100) / 100; }
+function __stage(name, extra) {
+  var d = { ms: __ms(), ready: document.readyState, body: !!document.body };
+  if (extra) for (var k in extra) d[k] = extra[k];
+  __trace('STAGE:' + name, d);
+}
 __trace('shim-loaded', { href: location.href });
+__stage('shim-start');
+// Log the very next paint after the shim runs (stage 1 visual).
+try { requestAnimationFrame(function() { __stage('raf-after-shim'); }); } catch (_e) {}
+// Log when the DOM is interactive/complete.
+try { document.addEventListener('DOMContentLoaded', function() { __stage('DOMContentLoaded'); }); } catch (_e) {}
+try { window.addEventListener('load', function() { __stage('window-load'); }); } catch (_e) {}
 var __base = (function() {
   // Used only for resolving background-image url("backgrounds/..") to an absolute
   // served path. The theme CSS itself is inlined below, so __base is best-effort.
@@ -117,6 +132,7 @@ ${cssBlocks.map(b => `var __style_${b.id.replace(/-/g, '_')} = document.createEl
 __style_${b.id.replace(/-/g, '_')}.id = '${b.id}';
 __style_${b.id.replace(/-/g, '_')}.textContent = (${JSON.stringify(b.content)}).replace(/__FTR10_FONTBASE__/g, __base);
 if (!document.getElementById('${b.id}')) document.head.appendChild(__style_${b.id.replace(/-/g, '_')});`).join('\n')}
+__stage('css-blocks-inserted', { count: ${cssBlocks.length} });
 
 // Thpace: load library first, then init script sequentially.
 // Thpace: inline library first, then init script (read from disk at gen time).
@@ -216,12 +232,13 @@ function __stopNebulaParticles() {
   __nebulaCanvas = null;
 }
 function __applyEffect(vals) {
-  if (!document.body) { document.addEventListener('DOMContentLoaded', function() { __applyEffect(vals); }); return; }
+  if (!document.body) { __stage('applyEffect-DEFERRED-no-body'); document.addEventListener('DOMContentLoaded', function() { __stage('applyEffect-deferred-fired'); __applyEffect(vals); }); return; }
   var effect = ((vals && vals['--ftr10-bg-effect']) || 'none').trim().toLowerCase();
   var prev = (document.body.getAttribute('data-ftr10-effect') || 'none');
   document.body.className = (document.body.className || '').replace(/\\bftr10-effect--\\S+/g, '').trim();
   if (effect !== 'none') document.body.classList.add('ftr10-effect--' + effect);
   document.body.setAttribute('data-ftr10-effect', effect);
+  __stage('applyEffect-applied', { effect: effect });
   if (prev !== effect) __trace('effect-switch', { from: prev, to: effect });
   if (effect === 'nebula') { __startNebulaParticles(); } else { __stopNebulaParticles(); }
 }
@@ -294,7 +311,31 @@ var applyVars = function(vars) {
     ms: Math.round((__t1 - __t0) * 100) / 100
   });
 };
+__stage('applyVars-default-begin');
 applyVars(__defaultVars);
+__stage('applyVars-default-end');
+// Boot paint sampler: record how the workbench chrome paints in over the first
+// ~2s (the "multi-stage flash" window between shim apply and DOMContentLoaded).
+// Samples via rAF so each entry is a real paint frame.
+(function() {
+  var __bt0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var __lastSig = '';
+  function __sample() {
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    var el = document.getElementById('theme-sync-live-style');
+    var mw = document.querySelector('.monaco-workbench');
+    var split = document.querySelector('.split-view-view');
+    var editor = document.querySelector('.editor-instance, .monaco-editor');
+    var bodyBg = document.body ? getComputedStyle(document.body).backgroundColor : '';
+    var sig = [!!mw, !!split, !!editor, bodyBg, document.readyState].join('|');
+    if (sig !== __lastSig) {
+      __lastSig = sig;
+      __stage('paint-sample', { mw: !!mw, split: !!split, editor: !!editor, bodyBg: bodyBg, live: !!el });
+    }
+    if (now - __bt0 < 2500) requestAnimationFrame(__sample);
+  }
+  requestAnimationFrame(__sample);
+})();
 
 // Poll vars.json for live updates from the extension host.
 // __base resolves to the local workbench dir where vars.json is symlinked
@@ -315,10 +356,13 @@ function __pollVars() {
     .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
     .then(function(data) {
       if (data && data.lastModified && data.lastModified !== __lastMod) {
+        __stage('poll-REAPPLY', { lastMod: data.lastModified, seeded: __lastMod });
         __trace('poll-change', { lastMod: data.lastModified });
         __lastMod = data.lastModified;
         __burstUntil = Date.now() + 2000;
         if (data.values) applyVars(data.values);
+      } else {
+        __stage('poll-noop', { lastMod: data && data.lastModified, seeded: __lastMod });
       }
     })
     .catch(function() {})

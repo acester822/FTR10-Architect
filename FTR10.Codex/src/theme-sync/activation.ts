@@ -138,6 +138,14 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(openPanelCmd, patchCmd, applyPresetCmd);
 
+  // Auto-refresh the workbench patch (pre-paint critical CSS + shim tag) on every
+  // activation, so the anti-flash pre-paint <style> stays in sync with the current
+  // --ftr10-bg without requiring the user to run the command manually. Silent to
+  // avoid popups, but log failures to the trace so they're debuggable.
+  patchWorkbench(state.store.profilePath, true).catch((err) => {
+    try { require('vscode').window.showErrorMessage?.('patchWorkbench auto failed: ' + (err?.message || err)); } catch (_e) {}
+  });
+
   state.store.watcher = chokidar.watch(themeJsonPath, { ignoreInitial: true });
   state.store.watcher.on('change', () => {
     try {
@@ -799,7 +807,7 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
   }, undefined, context.subscriptions);
 }
 
-async function patchWorkbench(profilePathArg: string): Promise<void> {
+async function patchWorkbench(profilePathArg: string, silent = false): Promise<void> {
   const workbenchDir = '/usr/lib/code-server/lib/vscode/out/vs/code/browser/workbench';
   const workbenchHtmlPath = path.join(workbenchDir, 'workbench.html');
   const shimSrcPath = path.join(profilePathArg, 'shim.js');
@@ -849,6 +857,35 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
     }
 
     let html = fs.readFileSync(workbenchHtmlPath, 'utf8');
+
+    // ── Pre-paint critical CSS (eliminates the boot "three-stage flash") ──────
+    // The workbench boots in ~760ms. Before the shim + VS Code's theme resolve,
+    // the page paints: (1) html{#000} black, then (2) our shim's body theme with
+    // VS Code's DEFAULT LIGHT theme surfaces still unstyled, then (3) the final
+    // settled look. That progression is the visible flash. Injecting the FINAL
+    // themed background as a critical <style> in <head> — before workbench.js and
+    // the shim — makes the very first paint already correct, collapsing 1+2 into
+    // the final look. We bake the live --ftr10-bg so it matches what the shim
+    // applies a few ms later (no color jump).
+    let bgColor = '#0a0a0a';
+    try {
+      const vp = path.join(profilePathArg, 'vars.json');
+      const parsed = JSON.parse(fs.readFileSync(vp, 'utf8'));
+      const v = parsed && parsed.values && parsed.values['--ftr10-bg'];
+      if (typeof v === 'string' && v.trim()) bgColor = v.trim();
+    } catch (_e) { /* fall back to near-black */ }
+    const PREPAINT_ID = 'ftr10-prepaint';
+    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}</style>`;
+    // Remove any prior copy so we always write the current bg color.
+    html = html.replace(new RegExp('<style id="' + PREPAINT_ID + '">.*?</style>\\s*', 'gis'), '');
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `  ${PREPAINT_STYLE}\n</head>`);
+      // Persist immediately — the shim-tag logic below only writes conditionally,
+      // so without this the pre-paint style could be dropped when the shim tag
+      // already exists.
+      fs.writeFileSync(workbenchHtmlPath, html);
+    }
+
     // Fix (2026-07-15): correct tag is {{WORKBENCH_WEB_BASE_URL}}/.../shim.js, not ./shim.js
     // Clean up any old/broken injections first to prevent duplicates and broken relative paths.
     const CORRECT_SHIM_TAG = '<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js"></script>';
@@ -889,9 +926,9 @@ async function patchWorkbench(profilePathArg: string): Promise<void> {
     const cssDirLink = path.join(workbenchDir, 'css.files');
     try { if (fs.existsSync(cssDirLink)) fs.unlinkSync(cssDirLink); } catch {}
     try { if (fs.existsSync(cssDirSrc)) fs.symlinkSync(cssDirSrc, cssDirLink); } catch {}
-    vscode.window.showInformationMessage('Workbench patched with shim.js');
+    if (!silent) vscode.window.showInformationMessage('Workbench patched with shim.js');
   } catch (err: any) {
-    vscode.window.showErrorMessage(`Failed to patch workbench: ${err?.message || err}`);
+    if (!silent) vscode.window.showErrorMessage(`Failed to patch workbench: ${err?.message || err}`);
   }
 }
 
