@@ -105,20 +105,14 @@ function __stage(name, extra) {
 __trace('shim-loaded', { href: location.href });
 __stage('shim-start');
 // Boot gate: hide the workbench chrome during code-server's ~800ms DOM build so
-// it fades in all-at-once (no progressive panel "pop-in" / three-stage reveal).
+// it appears all-at-once (no progressive panel "pop-in" / three-stage reveal).
 // The body+circuit paints immediately (pre-paint style); the chrome appears after.
+// We use visibility:hidden (not opacity) because VS Code's boot animation drives
+// .monaco-workbench opacity via inline styles that beat an opacity:0 !important
+// rule in the cascade. visibility:hidden is not fought by that animation.
 try { document.documentElement.classList.add('ftr10-booting'); } catch (_e) {}
 function __bootReveal() {
-  try {
-    var mw = document.querySelector('.monaco-workbench');
-    if (mw) { mw.classList.add('ftr10-boot-in'); }
-    // next frame: drop the gate so the opacity transition runs
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        document.documentElement.classList.remove('ftr10-booting');
-      });
-    });
-  } catch (_e) {}
+  try { document.documentElement.classList.remove('ftr10-booting'); } catch (_e) {}
 }
 if (document.readyState === 'complete') { __bootReveal(); }
 else { window.addEventListener('load', __bootReveal); }

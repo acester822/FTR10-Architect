@@ -891,7 +891,7 @@ async function patchWorkbench(profilePathArg: string, silent = false): Promise<v
         ).join(' ');
       }
     } catch (_e) {}
-    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{opacity:0!important;transition:opacity .28s ease}.ftr10-booting .monaco-workbench.ftr10-boot-in{opacity:1!important}</style>`;
+    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{visibility:hidden!important}.ftr10-booting .monaco-workbench.ftr10-boot-in{visibility:visible!important}</style>`;
     // Remove any prior copy so we always write the current bg color.
     html = html.replace(new RegExp('<style id="' + PREPAINT_ID + '">.*?</style>\\s*', 'gis'), '');
     if (html.includes('</head>')) {
