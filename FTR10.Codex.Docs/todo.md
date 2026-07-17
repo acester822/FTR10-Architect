@@ -14,7 +14,9 @@
 - [x] var panel in the main architect window is a list of all vars available to the user, there is a simple mode and an advanced mode. When the user saves a card, those values should update automatically to what the user changed. Currently it does not update at all. Previously it updated, but only if you left the session and came back into it, they should show live changes.
         - DONE (Item 5): extracted `applySessionToUI(s, derivedValues)`; `sessionSaved` handler now receives the full `session` from the host and re-renders the Vars panel live (no leave/re-enter needed).
 
-- [ ]
+- [ ] Make all buttons appearance look like /steer, /queue
+        - Stop button Not theming like the other buttons
+        - send, /steer, /queue, /stop, all need uniform font settings, 
 
 ## Plan / Execution (implemented)
 

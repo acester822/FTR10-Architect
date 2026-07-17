@@ -58,6 +58,18 @@ export function generateShim(profilePathArg: string, cfg: ThemeConfig): void {
   const thpaceLib = readJsSafe('css.files/thpace.min.js');
   const thpaceInit = readJsSafe('css.files/thpace-background.js');
   const contextMenu = readJsSafe('css.files/context-menu-codex.js');
+  // Bake the LIVE persisted vars into the shim at generation time. The shim runs
+  // in the BROWSER where fs/path/cfg do NOT exist, so live values must be embedded
+  // here as literals — not read at runtime. This makes the first paint match the
+  // saved card (no codepunk base flashes first) without any Node APIs in the shim.
+  let liveValues: Record<string, string> = (cfg.values as Record<string, string>) || {};
+  let liveLastMod = 0;
+  try {
+    const vp = path.join(profilePathArg, 'vars.json');
+    const p = JSON.parse(fs.readFileSync(vp, 'utf8'));
+    if (p && p.values && Object.keys(p.values).length) liveValues = p.values;
+    if (p && typeof p.lastModified === 'number') liveLastMod = p.lastModified;
+  } catch (_) {}
   const shim = `(function() {
 var ID = 'theme-sync-live-style';
 var el = document.getElementById(ID);
@@ -129,7 +141,11 @@ if (!document.getElementById(__customId) && ${JSON.stringify(contextMenu)}.lengt
   document.head.appendChild(__sCustom);
 }
 
-var __defaultVars = ${JSON.stringify(cfg.values)};
+// First paint must match the LIVE saved theme (baked in at generation time as
+// __defaultVars below), not the preset that was active when this shim was built.
+// vars.json is read in the extension host (Node) and inlined here, so no Node
+// APIs run in the browser. Eliminates the "codepunk flashes first" glitch.
+var __defaultVars = ${JSON.stringify(liveValues)};
 var __nebulaCanvas = null, __nebulaRaf = null;
 function __startNebulaParticles() {
   if (__nebulaCanvas && __nebulaCanvas.isConnected) return;
@@ -250,7 +266,12 @@ var applyVars = function(vars) {
     __trace('applyVars', { keys: 0, effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(), thpace: thpaceOn, ms: Math.round((__t1 - __t0) * 100) / 100, skipped: true });
     return;
   }
-  el.textContent = ':root {' + Object.entries(__next).map(function(kv) { return ' ' + kv[0] + ': ' + kv[1] + ' !important;'; }).join(' ') + ' }';
+  // Write the FULL resolved set — el.textContent REPLACES the entire :root block,
+  // so emitting only the changed subset would wipe every unchanged var (e.g.
+  // --ftr10-bg-image / --ftr10-bg-effect), making the background image vanish on
+  // any unrelated edit. The cost of a full :root rewrite is acceptable now that we
+  // skip the entire apply when nothing changed (the common idle-poll case).
+  el.textContent = ':root {' + Object.keys(resolved).map(function(k) { return ' ' + k + ': ' + resolved[k] + ' !important;'; }).join(' ') + ' }';
   __applyEffect(resolved);
   // Immediately enable/disable Thpace canvas based on the var (if API is ready)
   var thpaceOn = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
@@ -279,7 +300,10 @@ applyVars(__defaultVars);
 // with the shim re-applying the whole :root block (incl. re-decoding the bg image)
 // on every poll — made card switches hang and lag. applyVars is now diff-aware, and
 // the burst is short, so switching stays snappy without the long lag tail.
-var __lastMod = 0;
+// Seed __lastMod with the live vars.json lastModified (baked at generation time)
+// so the first poll sees "already current" and skips — __defaultVars already
+// painted the correct state, so re-applying would cause a redundant shift.
+var __lastMod = ${liveLastMod};
 var __pollTimer = null;
 var __burstUntil = 0;
 function __pollVars() {
