@@ -709,6 +709,13 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
       state.store.CodexPanel?.webview.postMessage({ command: 'architectConfig', config: state.store.themeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: state.store.themeConfig.activePreset, values: state.store.themeConfig.values, bgImages });
     }
 
+    if (msg.command === 'openEditor') {
+      // Open the full "FTR10 Theme Editor" (Advanced Editor) panel as the single
+      // place to edit every theme variable. The color-wheel GUI no longer has an
+      // inline vars pane — its "⚙ Variables" button routes here.
+      vscode.commands.executeCommand('themeSync.openPanel');
+    }
+
     if (msg.command === 'liveUpdate' && msg.values) {
       const changedKeys = Object.keys(msg.values);
       state.store.themeConfig.values = { ...state.store.themeConfig.values, ...msg.values };

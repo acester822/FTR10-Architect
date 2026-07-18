@@ -776,6 +776,27 @@ window.__FTR10_INIT__ = ${initJson};
     background: rgba(0,8,20,0.8);
   }
 
+  .btn-editor {
+    border: 1px solid rgba(var(--ui-accent-rgb),0.35);
+    background: rgba(0,8,20,0.7);
+    color: rgba(var(--ui-accent-rgb),0.95);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    margin-left: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn-editor:hover {
+    background: rgba(var(--ui-accent-rgb),0.22);
+    box-shadow: 0 0 20px rgba(var(--ui-accent-rgb),0.4);
+  }
+  .btn-editor:active { transform: scale(0.97); }
+
   /* ── color override modal ─────────────────────────────────────── */
   .override-modal-bg {
     display: none;
@@ -1610,19 +1631,7 @@ window.__FTR10_INIT__ = ${initJson};
         <button class="btn-rand" id="randomBtn">⟳ Random</button>
         <button class="btn-save btn-rand" id="saveBtn">⊛ Save</button>
         <button class="btn-apply" id="applyBtn">⬡ Apply</button>
-      </div>
-
-      <div class="vars-panel">
-        <div class="vars-panel-header">
-          <span class="vars-panel-title">&#9672; Variables</span>
-          <div class="vars-toggle-row">
-            <span class="vars-toggle-label" id="varsToggleLabel">Simple</span>
-            <button class="vars-toggle-btn" id="varsToggleBtn" title="Toggle advanced mode">&#9662;</button>
-          </div>
-        </div>
-        <div class="vars-content" id="varsContent">
-          <div class="v-empty">Variables load after first Apply.</div>
-        </div>
+        <button class="btn-editor" id="openEditorBtn" title="Open Advanced Editor">⚙ Variables</button>
       </div>
 
       <div class="legend-panel mobile" id="colorLegendMobile"></div>
@@ -2420,11 +2429,13 @@ document.getElementById('saveConfirmModal').addEventListener('click', (e) => {
   }
 });
 
-// ── vars panel toggle ────────────────────────────────────────────────────────
-document.getElementById('varsToggleBtn').addEventListener('click', () => {
-  varsState.advanced = !varsState.advanced;
-  document.getElementById('varsToggleLabel').textContent = varsState.advanced ? 'Advanced' : 'Simple';
-  renderVarsPanel();
+// ── open Advanced Editor ────────────────────────────────────────────────────
+// The full variable editor (the "FTR10 Theme Editor" panel opened by the
+// themeSync.openPanel command) is now the single source of truth for editing
+// theme vars. The inline vars pane was removed from this GUI; this button opens
+// that editor instead.
+document.getElementById('openEditorBtn').addEventListener('click', () => {
+  vscode.postMessage({ command: 'openEditor' });
 });
 
 // ── session messages from extension ───────────────────────────────────────────
