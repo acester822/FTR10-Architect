@@ -153,32 +153,31 @@ __style_${b.id.replace(/-/g, '_')}.textContent = (${JSON.stringify(b.content)}).
 if (!document.getElementById('${b.id}')) document.head.appendChild(__style_${b.id.replace(/-/g, '_')});`).join('\n')}
 __stage('css-blocks-inserted', { count: ${cssBlocks.length} });
 
-// Thpace: load library first, then init script sequentially.
-// Thpace: inline library first, then init script (read from disk at gen time).
+// Thpace + context menu: code-server's CSP sets script-src WITHOUT
+// 'unsafe-inline', so dynamically-created INLINE <script> elements are
+// BLOCKED and never execute (that's why Thpace was silently dead). script-src
+// DOES allow 'blob:', so we inject these scripts via blob: object URLs instead
+// of textContent — that satisfies CSP and they run normally.
+function __injectScriptById(id, code, onload) {
+  if (!id || !code || document.getElementById(id)) return;
+  try {
+    var __blob = new Blob([code], { type: 'application/javascript' });
+    var __url = URL.createObjectURL(__blob);
+    var __s = document.createElement('script');
+    __s.id = id;
+    __s.src = __url;
+    if (typeof onload === 'function') __s.onload = onload;
+    document.head.appendChild(__s);
+  } catch (_e) {}
+}
 var __libId = 'ftr10-thpace-lib';
 if (!document.getElementById(__libId) && ${JSON.stringify(thpaceLib)}.length) {
-  var __sLib = document.createElement('script');
-  __sLib.id = __libId;
-  __sLib.textContent = ${JSON.stringify(thpaceLib)};
-  __sLib.onload = function() {
-    var __initId = 'ftr10-thpace-init';
-    if (!document.getElementById(__initId) && ${JSON.stringify(thpaceInit)}.length) {
-      var __sInit = document.createElement('script');
-      __sInit.id = __initId;
-      __sInit.textContent = ${JSON.stringify(thpaceInit)};
-      document.head.appendChild(__sInit);
-    }
-  };
-  document.head.appendChild(__sLib);
+  __injectScriptById(__libId, ${JSON.stringify(thpaceLib)}, function() {
+    __injectScriptById('ftr10-thpace-init', ${JSON.stringify(thpaceInit)});
+  });
 }
 
-var __customId = 'ftr10-context-menu-codex';
-if (!document.getElementById(__customId) && ${JSON.stringify(contextMenu)}.length) {
-  var __sCustom = document.createElement('script');
-  __sCustom.id = __customId;
-  __sCustom.textContent = ${JSON.stringify(contextMenu)};
-  document.head.appendChild(__sCustom);
-}
+__injectScriptById('ftr10-context-menu-codex', ${JSON.stringify(contextMenu)});
 
 // First paint must match the LIVE saved theme (baked in at generation time as
 // __defaultVars below), not the preset that was active when this shim was built.

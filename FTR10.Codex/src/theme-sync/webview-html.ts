@@ -714,7 +714,7 @@ window.__FTR10_INIT__ = ${initJson};
     letter-spacing: 2px;
     text-transform: uppercase;
     padding: 7px 16px;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s;
     position: relative;
