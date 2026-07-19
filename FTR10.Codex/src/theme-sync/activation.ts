@@ -270,6 +270,22 @@ export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
   }
 }
 
+// When the Advanced Editor edits the active session card (activePreset === 'arch-<id>'),
+// fold the editor's changed values into that card's varOverrides so the card carries the
+// edit. Without this, editor changes land only in the global theme config and are reverted
+// the moment you switch to / reload the card (which restores the card's palette-derived
+// values via deriveCodexPreset + varOverrides). Mirrors how saveSession persists varOverrides.
+function propagateEditorValuesToCard(presetId: string | undefined, values: Record<string, string>): void {
+  if (!presetId || !presetId.startsWith('arch-')) return;
+  const sid = presetId.slice(5);
+  const session = state.store.themeConfig.architectSessions[sid];
+  if (!session) return;
+  session.varOverrides = computeSessionVarDiff(session, values || {});
+  session.updatedAt = Date.now();
+  state.store.themeConfig.architectSessions[sid] = session;
+  state.store.sidebarProvider?.syncSessions();
+}
+
 function handleMessage(msg: any): void {
   if (msg.command === 'getConfig') {
     if (state.store.panel) {
@@ -357,6 +373,9 @@ function handleMessage(msg: any): void {
       console.error('[FTR10] liveUpdate persistThemeConfig failed:', e);
       vscode.window.showErrorMessage('FTR10 live-update failed: ' + msgTxt);
     }
+    // Fold the editor's live edit into the active session card (if any) so it
+    // survives switching / reloading the card. See propagateEditorValuesToCard().
+    propagateEditorValuesToCard(state.store.themeConfig.activePreset, newValues);
     state.store.sidebarProvider?.syncActivePreset();
     return;
   }
@@ -392,6 +411,9 @@ function handleMessage(msg: any): void {
     }
 
     persistThemeConfig();
+    // Fold the editor's edit into the active session card (if any) so it survives
+    // switching / reloading the card — see propagateEditorValuesToCard().
+    propagateEditorValuesToCard(presetId, newValues);
     state.store.sidebarProvider?.syncActivePreset();
     sourceP10kInTerminals();
     vscode.window.showInformationMessage('Theme applied.');
