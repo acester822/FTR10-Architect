@@ -537,8 +537,8 @@ window.__FTR10_INIT__ = ${initJson};
     backdrop-filter: blur(4px);
     box-shadow: inset 0 0 14px rgba(var(--ui-accent-rgb),0.04);
   }
-  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(22px); }
-  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-22px); }
+  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(50px); }
+  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-50px); }
 
   .ep-canvas {
     position: absolute;
