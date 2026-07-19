@@ -498,7 +498,7 @@ window.__FTR10_INIT__ = ${initJson};
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 8px;
+    gap: 4px;
     width: 100%;
     max-width: 1100px;
     margin: 0 auto 18px;
@@ -1130,7 +1130,7 @@ window.__FTR10_INIT__ = ${initJson};
   }
   .left-legend-wrap {
     position: absolute;
-    right: calc(100% + 4px);
+    left: calc(100% + 6px);
     top: 0;
     display: flex;
     flex-direction: column;
@@ -1141,7 +1141,7 @@ window.__FTR10_INIT__ = ${initJson};
 
   .right-legend-wrap {
     position: absolute;
-    left: calc(100% + 4px);
+    right: calc(100% + 6px);
     top: 0;
     display: flex;
     flex-direction: column;
