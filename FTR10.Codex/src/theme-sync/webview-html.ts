@@ -1,3 +1,4 @@
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -475,7 +476,7 @@ window.__FTR10_INIT__ = ${initJson};
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 28px;
+    gap: 12px;
     width: 100%;
     max-width: 1100px;
     margin: 0 auto 18px;
@@ -514,8 +515,8 @@ window.__FTR10_INIT__ = ${initJson};
     backdrop-filter: blur(4px);
     box-shadow: inset 0 0 14px rgba(var(--ui-accent-rgb),0.04);
   }
-  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(30px); }
-  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-30px); }
+  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(22px); }
+  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-22px); }
 
   .ep-canvas {
     position: absolute;
@@ -833,6 +834,30 @@ window.__FTR10_INIT__ = ${initJson};
   }
   body.edit-layout .draggable:active { cursor: grabbing; }
   body.edit-layout .draggable.dragged { z-index: 61; }
+
+  /* ── grab-to-pan (when not editing layout) ───────────────────── */
+  :root { --pan-x: 0px; --pan-y: 0px; }
+  .panel-row, .tables-below {
+    transform: translate(var(--pan-x), var(--pan-y));
+    will-change: transform;
+  }
+  .stage {
+    cursor: default;
+  }
+  body:not(.edit-layout) .stage {
+    cursor: grab;
+  }
+  body:not(.edit-layout) .stage:active {
+    cursor: grabbing;
+  }
+  body.is-panning {
+    cursor: grabbing !important;
+    user-select: none;
+  }
+  body.is-panning .panel-row,
+  body.is-panning .tables-below {
+    transition: none;
+  }
 
   /* ── color override modal ─────────────────────────────────────── */
   .override-modal-bg {
@@ -1675,11 +1700,11 @@ window.__FTR10_INIT__ = ${initJson};
         </div>
       </div>
       <div class="right-legend-wrap draggable">
-        <div class="quick-panel" id="fontsPanel">
+        <div class="quick-panel draggable" id="fontsPanel">
           <div class="hud-title">Fonts</div>
           <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
         </div>
-        <div class="quick-panel" id="opacityPanel">
+        <div class="quick-panel draggable" id="opacityPanel">
           <div class="hud-title">Opacity</div>
           <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
         </div>
@@ -1687,7 +1712,7 @@ window.__FTR10_INIT__ = ${initJson};
     </div>
   </div>
   <div class="tables-below" style="display:none">
-    <div class="quick-panel" id="bgPanel_below">
+    <div class="quick-panel draggable" id="bgPanel_below">
       <div class="hud-title">Backgrounds</div>
       <div class="qp-row">
         <span class="qp-label">Thpace Particles</span>
@@ -1714,11 +1739,11 @@ window.__FTR10_INIT__ = ${initJson};
         <label class="bg-toggle-pill"><input type="checkbox" id="bgEffectToggle_below"><span class="bg-toggle-track"></span></label>
       </div>
     </div>
-    <div class="quick-panel" id="fontsPanel_below">
+    <div class="quick-panel draggable" id="fontsPanel_below">
       <div class="hud-title">Fonts</div>
       <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
     </div>
-    <div class="quick-panel" id="opacityPanel_below">
+    <div class="quick-panel draggable" id="opacityPanel_below">
       <div class="hud-title">Opacity</div>
       <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
     </div>
@@ -1770,11 +1795,14 @@ __wvTrace('architect-script-init', {});
 // ── Edit-Layout mode: drag movable panels (varTables + legend wraps) ──
 // Stone set (ep-wrap / center-col / clusters) is NEVER draggable.
 (function initLayoutDrag() {
-  const MOVABLE = ['varTables', 'left-legend-wrap', 'right-legend-wrap'];
+  const MOVABLE = ['varTables', 'left-legend-wrap', 'right-legend-wrap', 'fontsPanel', 'opacityPanel', 'fontsPanel_below', 'opacityPanel_below', 'bgPanel_below', 'colorLegendDesktop'];
   const stage = document.querySelector('.stage') || document.body;
   function elFor(id) {
     if (id === 'varTables') return document.getElementById('varTables');
-    return document.querySelector('.' + id);
+    if (id.includes('Panel') || id.includes('Legend') || id.includes('Below')) {
+      return document.getElementById(id) || document.querySelector('.' + id);
+    }
+    return document.getElementById(id) || document.querySelector('.' + id);
   }
   function commit(id, x, y) {
     const ov = Object.assign({}, window.__layoutOverrides || {});
@@ -1913,6 +1941,94 @@ __wvTrace('architect-script-init', {});
       el.style.setProperty('--drag-y', (nr.top - nsr.top) + 'px');
     });
   });
+})();
+
+// ── grab-to-pan: drag empty stage to move panel-row ───────────────────────
+(function initPan() {
+  const stage = document.querySelector('.stage');
+  if (!stage) return;
+  let panning = null; // { startX, startY, originX, originY }
+  let panX = 0, panY = 0;
+
+  // Elements that should NOT trigger pan (clickable / draggable)
+  const NO_PAN_SEL = [
+    'button', 'input', 'select', 'textarea', 'canvas',
+    '.ps', '.swatch-panel', '.ep-wrap', '.wheel-wrap', '.harmony-row',
+    '.name-row', '.action-row', '.quick-panel', '.legend-panel', '.hud',
+    '.var-tables', '.override-modal', '.override-modal-bg', '#editLayoutBtn',
+    '.draggable', 'a', '[contenteditable]'
+  ].join(',');
+
+  function isNoPanTarget(t) {
+    try { return t.closest(NO_PAN_SEL); } catch { return false; }
+  }
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (document.body.classList.contains('edit-layout')) return;
+    if (e.button !== 0) return; // left button / touch only
+    if (isNoPanTarget(e.target)) return;
+    // Only start pan if clicking directly on stage, panel-row empty gaps, center-col gaps
+    // Allow if target is stage, panel-row, left-cluster, right-cluster, center-col
+    const okParents = ['.stage', '.panel-row', '.left-cluster', '.right-cluster', '.center-col', '.cyber-title', '.cyber-sub'];
+    const isOk = okParents.some(sel => {
+      try { return e.target.closest(sel); } catch { return false; }
+    });
+    // If not inside an ok parent, don't pan
+    if (!isOk && e.target !== stage) return;
+    // Still check if inside a NO_PAN inside ok parent
+    if (isNoPanTarget(e.target)) return;
+
+    panning = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: panX,
+      originY: panY
+    };
+    document.body.classList.add('is-panning');
+    stage.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if (!panning) return;
+    panX = panning.originX + (e.clientX - panning.startX);
+    panY = panning.originY + (e.clientY - panning.startY);
+    document.documentElement.style.setProperty('--pan-x', panX + 'px');
+    document.documentElement.style.setProperty('--pan-y', panY + 'px');
+  });
+
+  function endPan(e) {
+    if (!panning) return;
+    panning = null;
+    document.body.classList.remove('is-panning');
+    try { stage.releasePointerCapture?.(e.pointerId); } catch {}
+  }
+  document.addEventListener('pointerup', endPan);
+  document.addEventListener('pointercancel', endPan);
+
+  // Double-click empty space to reset pan
+  stage.addEventListener('dblclick', (e) => {
+    if (document.body.classList.contains('edit-layout')) return;
+    if (isNoPanTarget(e.target)) return;
+    panX = 0; panY = 0;
+    document.documentElement.style.setProperty('--pan-x', '0px');
+    document.documentElement.style.setProperty('--pan-y', '0px');
+  });
+
+  // Optional: mouse wheel + shift to pan horizontally
+  stage.addEventListener('wheel', (e) => {
+    if (document.body.classList.contains('edit-layout')) return;
+    // Only pan with middle button or alt key? Keep standard scroll for now.
+    // If user holds Space or Middle mouse, allow pan via wheel.
+    if (e.altKey || e.shiftKey) {
+      // Allow the pan to accumulate from wheel
+      panX -= e.deltaX;
+      panY -= e.deltaY;
+      document.documentElement.style.setProperty('--pan-x', panX + 'px');
+      document.documentElement.style.setProperty('--pan-y', panY + 'px');
+      e.preventDefault();
+    }
+  }, { passive: false });
 })();
 
 // ── wheel setup ──────────────────────────────────────────────────────────────
