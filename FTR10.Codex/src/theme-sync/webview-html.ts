@@ -498,9 +498,9 @@ window.__FTR10_INIT__ = ${initJson};
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 4px;
+    gap: 0;
     width: 100%;
-    max-width: 600px;
+    max-width: 480px;
     margin: 0 auto 18px;
     min-height: 480px;
   }
