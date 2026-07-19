@@ -431,13 +431,11 @@ window.__FTR10_INIT__ = ${initJson};
 
   /* ── particle canvas ─────────────────────────────────────────── */
   #particles {
-    /* Last child of body + high z-index: bypasses backdrop-filter/transform
-       compositor layer issues from .ep-wrap inside .stage */
     position: fixed; inset: 0;
     width: 100vw; height: 100vh;
     z-index: 9999;
     pointer-events: none;
-    will-change: transform; /* own GPU compositing layer */
+    will-change: transform;
   }
 
   /* ── layout ──────────────────────────────────────────────────── */
@@ -474,30 +472,23 @@ window.__FTR10_INIT__ = ${initJson};
 
   /* ── three-panel row (stone layout: swatches flank the wheel, centered) ── */
   .panel-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: start;
+    display: flex;
+    align-items: flex-start;
     justify-content: center;
-    gap: 0;
+    gap: 28px;
     width: 100%;
-    max-width: 860px;
+    max-width: 1100px;
     margin: 0 auto 18px;
     min-height: 480px;
   }
-  /* Below ~1100px the side clusters drop below the wheel but stay centered,
-     preserving the swatch-flanks-wheel arrangement instead of squeezing. */
-  @media (max-width: 1100px) {
-    /* Keep swatch panels flanking the wheel (never stack). The <1200px rule
-       already drops the right cluster at narrow widths. */
-    .panel-row { grid-template-columns: auto minmax(0, 1fr); }
-    .left-cluster, .right-cluster { display: flex; flex-direction: column; align-items: center; }
-  }
   .center-col {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: center;
+    gap: 14px;
+    padding-top: 0;
   }
 
   /* ── side swatch panels ──────────────────────────────────────── */
@@ -595,17 +586,6 @@ window.__FTR10_INIT__ = ${initJson};
       0 6px 18px rgba(0,0,0,0.5),
       0 0 12px var(--glow, rgba(0,212,255,0.3)),
       inset 0 1px 0 rgba(255,255,255,0.2);
-  }
-
-  /* ── center column ───────────────────────────────────────────── */
-  .center-col {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-    padding-top: 0;
   }
 
   /* ── hue ring container ──────────────────────────────────────── */
@@ -827,22 +807,32 @@ window.__FTR10_INIT__ = ${initJson};
 
   /* ── Edit-Layout mode: movable panels (varTables + legend wraps) ──
      The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
+  /* Default draggable sizing */
+  .draggable { position: relative; }
+  #varTables.draggable { position: relative; width: 100%; max-width: 720px; }
   /* A .dragged element has a SAVED position (from layoutOverrides) and keeps it
      applied ALWAYS — not just during edit mode — so the move persists on reload. */
-  #varTables.draggable.dragged { position: absolute; left: var(--drag-x, 0px); top: var(--drag-y, 0px); z-index: 50; }
-  .left-legend-wrap.dragged,
-  .right-legend-wrap.dragged { right: auto; left: var(--drag-x, 0px); top: var(--drag-y, 0px); }
-  body.edit-layout .draggable { cursor: grab; }
+  .draggable.dragged {
+    position: absolute !important;
+    left: var(--drag-x, 0px) !important;
+    top: var(--drag-y, 0px) !important;
+    right: auto !important;
+    z-index: 50;
+  }
+  body.edit-layout .draggable {
+    cursor: grab;
+    outline: 1px dashed rgba(var(--ui-accent-rgb), 0.45);
+    outline-offset: 2px;
+    /* During edit, all draggables become absolute at their seeded --drag-x/y
+       so they stay visually in place when we switch containing block to .stage. */
+    position: absolute !important;
+    left: var(--drag-x, 0px) !important;
+    top: var(--drag-y, 0px) !important;
+    right: auto !important;
+    z-index: 60;
+  }
   body.edit-layout .draggable:active { cursor: grabbing; }
-  body.edit-layout .draggable { outline: 1px dashed rgba(var(--ui-accent-rgb), 0.45); outline-offset: 2px; }
-  /* During an active drag (edit mode), reflect the live --drag-x/y too. */
-  body.edit-layout .draggable.left-legend-wrap,
-  body.edit-layout .draggable.right-legend-wrap {
-    right: auto; left: var(--drag-x, 0px); top: var(--drag-y, 0px);
-  }
-  body.edit-layout #varTables.draggable {
-    position: absolute; left: var(--drag-x, 0px); top: var(--drag-y, 0px); z-index: 50;
-  }
+  body.edit-layout .draggable.dragged { z-index: 61; }
 
   /* ── color override modal ─────────────────────────────────────── */
   .override-modal-bg {
@@ -1096,28 +1086,24 @@ window.__FTR10_INIT__ = ${initJson};
     flex: 0 0 auto;
   }
   .left-legend-wrap {
-    position: relative;
-    order: -1;
-    left: auto; right: auto; top: auto;
-    transform: none;
+    position: absolute;
+    right: calc(100% + 16px);
+    top: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
     width: clamp(172px, 17vw, 210px);
-    margin-bottom: 10px;
     z-index: 20;
   }
 
   .right-legend-wrap {
-    position: relative;
-    order: -1;
-    left: auto; right: auto; top: auto;
-    transform: none;
+    position: absolute;
+    left: calc(100% + 16px);
+    top: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
     width: clamp(172px, 17vw, 210px);
-    margin-bottom: 10px;
     z-index: 20;
   }
 
@@ -1354,25 +1340,23 @@ window.__FTR10_INIT__ = ${initJson};
   /* ── responsive collapse ─────────────────────────────────────── */
   @media (max-width: 420px) {
     .swatch-panel { display: none; }
-    .panel-row { justify-content: center; }
+    .panel-row { justify-content: center; flex-wrap: wrap; }
     .legend-wrap { display: none; }
     .legend-panel.mobile {
       display: block;
       width: min(96vw, 340px);
       max-height: 30vh;
     }
+    .left-legend-wrap, .right-legend-wrap { display: none; }
   }
 
   @media (max-width: 1400px) {
     .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
   }
   @media (max-width: 1200px) {
-    /* Keep swatch panels flanking the wheel horizontally; never stack them.
-       Only hide the RIGHT swatch cluster when truly narrow. */
-    .right-cluster { display: none; }
-    .panel-row { grid-template-columns: auto minmax(0, 1fr); }
+    /* Keep both swatch clusters flanking the wheel; only shrink legend width */
     .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
-    .legend-panel.mobile { display: block; }
+    .legend-panel.mobile { display: none; }
   }
 
   @media (max-width: 1280px) {
@@ -1793,42 +1777,76 @@ __wvTrace('architect-script-init', {});
     return document.querySelector('.' + id);
   }
   function commit(id, x, y) {
-    const ov = window.__layoutOverrides || {};
+    const ov = Object.assign({}, window.__layoutOverrides || {});
     ov[id] = { x: Math.round(x), y: Math.round(y) };
     window.__layoutOverrides = ov;
-    vscode.postMessage({ command: 'saveLayout', overrides: ov });
+    try { vscode.postMessage({ command: 'saveLayout', overrides: ov }); } catch(_e) {}
+  }
+  function commitRemoval(id) {
+    const ov = Object.assign({}, window.__layoutOverrides || {});
+    if (ov[id]) { delete ov[id]; window.__layoutOverrides = ov;
+      try { vscode.postMessage({ command: 'saveLayout', overrides: ov }); } catch(_e) {}
+    }
   }
   function applyOverrides(ov) {
     if (!ov) return;
+    window.__layoutOverrides = Object.assign({}, window.__layoutOverrides || {}, ov);
     MOVABLE.forEach(id => {
       const el = elFor(id); if (!el || !ov[id]) return;
       el.style.setProperty('--drag-x', ov[id].x + 'px');
       el.style.setProperty('--drag-y', ov[id].y + 'px');
-      el.classList.add('dragged'); // persist position even outside edit mode
+      el.classList.add('dragged');
     });
   }
   window.__applyLayoutOverrides = applyOverrides;
+  // Also expose a way to clear a single override (reset position)
+  window.__clearLayoutOverride = function(id) {
+    const el = elFor(id); if (el) { el.classList.remove('dragged'); el.style.removeProperty('--drag-x'); el.style.removeProperty('--drag-y'); }
+    commitRemoval(id);
+  };
   const btn = document.getElementById('editLayoutBtn');
-  if (!btn) return; // button absent in this context (e.g. sidebar) — never abort the script.
-  let dragging = null; // { el, id, offX, offY }
+  if (!btn) return;
+  let dragging = null; // { el, id, offX, offY, moved }
+  const movedInSession = new Set();
   function enterEdit() {
     document.body.classList.add('edit-layout');
     btn.classList.add('active');
-    // Seed each movable el with a current position so transforms start clean.
+    movedInSession.clear();
     MOVABLE.forEach(id => {
       const el = elFor(id); if (!el) return;
+      // Seed position from current bounding rect so switch to stage-absolute doesn't jump.
+      // For already-dragged elements, the current rect already equals saved position, so seed is same.
       const r = el.getBoundingClientRect();
       const sr = stage.getBoundingClientRect();
-      el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
-      el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+      // If not yet seeded (no inline --drag-x), seed now. If already has saved pos, keep it but ensure consistent.
+      if (!el.style.getPropertyValue('--drag-x')) {
+        el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
+        el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+      } else {
+        // Re-sync from actual rect to avoid drift after window resize while in edit? Keep existing if dragged.
+        if (!el.classList.contains('dragged')) {
+          el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
+          el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+        }
+      }
     });
   }
   function exitEdit() {
     document.body.classList.remove('edit-layout');
     btn.classList.remove('active');
-    MOVABLE.forEach(id => { const el = elFor(id); if (el) commit(id,
-      parseFloat(el.style.getPropertyValue('--drag-x')) || 0,
-      parseFloat(el.style.getPropertyValue('--drag-y')) || 0); });
+    MOVABLE.forEach(id => {
+      const el = elFor(id); if (!el) return;
+      if (el.classList.contains('dragged')) {
+        // Has saved position — persist whatever current --drag-x/y is (seeded or moved)
+        const x = parseFloat(el.style.getPropertyValue('--drag-x')) || 0;
+        const y = parseFloat(el.style.getPropertyValue('--drag-y')) || 0;
+        commit(id, x, y);
+      } else {
+        // Never dragged — clear seeded inline pos so it reverts to default layout
+        el.style.removeProperty('--drag-x');
+        el.style.removeProperty('--drag-y');
+      }
+    });
   }
   btn.addEventListener('click', () => {
     if (document.body.classList.contains('edit-layout')) exitEdit(); else enterEdit();
@@ -1840,11 +1858,18 @@ __wvTrace('architect-script-init', {});
       : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
     if (!id) return;
     const r = el.getBoundingClientRect();
-    dragging = { el, id, offX: e.clientX - r.left, offY: e.clientY - r.top };
-    el.setPointerCapture(e.pointerId);
+    dragging = { el, id, offX: e.clientX - r.left, offY: e.clientY - r.top, moved: false, startX: e.clientX, startY: e.clientY };
+    try { el.setPointerCapture(e.pointerId); } catch(_){}
   });
   document.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    const dx = e.clientX - dragging.startX, dy = e.clientY - dragging.startY;
+    if (!dragging.moved && Math.hypot(dx, dy) < 3) return; // threshold
+    if (!dragging.moved) {
+      dragging.moved = true;
+      movedInSession.add(dragging.id);
+      dragging.el.classList.add('dragged');
+    }
     const sr = stage.getBoundingClientRect();
     const x = e.clientX - sr.left - dragging.offX;
     const y = e.clientY - sr.top - dragging.offY;
@@ -1855,9 +1880,38 @@ __wvTrace('architect-script-init', {});
     if (!dragging) return;
     const d = dragging; dragging = null;
     try { d.el.releasePointerCapture(e.pointerId); } catch (_) {}
-    commit(d.id,
-      parseFloat(d.el.style.getPropertyValue('--drag-x')) || 0,
-      parseFloat(d.el.style.getPropertyValue('--drag-y')) || 0);
+    if (d.moved) {
+      commit(d.id,
+        parseFloat(d.el.style.getPropertyValue('--drag-x')) || 0,
+        parseFloat(d.el.style.getPropertyValue('--drag-y')) || 0);
+    }
+  });
+  // Double-click a dragged panel in edit mode to reset it to default position
+  document.addEventListener('dblclick', (e) => {
+    if (!document.body.classList.contains('edit-layout')) return;
+    const el = (e.target).closest('.draggable.dragged'); if (!el) return;
+    const id = el.id || (el.classList.contains('left-legend-wrap') ? 'left-legend-wrap'
+      : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
+    if (!id) return;
+    e.preventDefault();
+    el.classList.remove('dragged');
+    el.style.removeProperty('--drag-x');
+    el.style.removeProperty('--drag-y');
+    // After clearing, re-seed so it doesn't jump while still in edit mode
+    const r = el.getBoundingClientRect();
+    const sr = stage.getBoundingClientRect();
+    // But we don't want it absolute anymore — remove edit absolute by temporarily clearing edit?
+    // Instead, force it back to default flow by removing edit mode for this element?
+    // Simplest: commit removal and exit/re-enter logic: just commitRemoval
+    commitRemoval(id);
+    // Re-seed for visual stability if staying in edit mode: compute default layout position after removal
+    requestAnimationFrame(() => {
+      if (!document.body.classList.contains('edit-layout')) return;
+      const nr = el.getBoundingClientRect();
+      const nsr = stage.getBoundingClientRect();
+      el.style.setProperty('--drag-x', (nr.left - nsr.left) + 'px');
+      el.style.setProperty('--drag-y', (nr.top - nsr.top) + 'px');
+    });
   });
 })();
 
@@ -2547,10 +2601,6 @@ window.addEventListener('message', (e) => {
     _varsLiveTimer = null;
     currentSessionId = s.id;
     sessionName = s.name;
-    // Restore saved panel drag positions (Edit-Layout mode). Applied after init.
-    if (window.__applyLayoutOverrides && msg.config && msg.config.layoutOverrides) {
-      window.__applyLayoutOverrides(msg.config.layoutOverrides);
-    }
     baseHue = typeof s.baseHue === 'number' ? s.baseHue : baseHue;
     harmony = s.harmony || harmony;
     // Restore swatch overrides
@@ -2629,6 +2679,9 @@ window.addEventListener('message', (e) => {
   if (msg.command === 'architectConfig') {
     if (msg.config) {
       varsState.sections = msg.config.sections || [];
+      if (msg.config.layoutOverrides && window.__applyLayoutOverrides) {
+        try { window.__applyLayoutOverrides(msg.config.layoutOverrides); } catch(_e) {}
+      }
     }
     // Only overwrite values on initial load (no values yet); skip if user has live in-flight edits
     if (!Object.keys(varsState.values).length) {
@@ -2979,6 +3032,9 @@ window.addEventListener('resize', () => {
 
     // ── config / vars (mirrors architectConfig handler) ───────────────────
     if (init.config && init.config.sections) { varsState.sections = init.config.sections; }
+    if (init.config && init.config.layoutOverrides && window.__applyLayoutOverrides) {
+      try { window.__applyLayoutOverrides(init.config.layoutOverrides); } catch(_e) {}
+    }
     if (init.simpleGroups && init.simpleGroups.length) { varsState.simpleGroups = init.simpleGroups; }
     if (init.bgImages) { __bgImages = init.bgImages; }
     if (init.activePreset !== undefined) { activePresetId = init.activePreset || null; }

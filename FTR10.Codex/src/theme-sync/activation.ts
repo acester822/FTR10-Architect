@@ -628,7 +628,7 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
     }
   }
   state.store.CodexPanel.webview.html = getCodexHtml({
-    config: { sections: state.store.themeConfig.sections },
+    config: { sections: state.store.themeConfig.sections, layoutOverrides: state.store.themeConfig.layoutOverrides || {} },
     simpleGroups: SIMPLE_GROUPS,
     activePreset: state.store.themeConfig.activePreset,
     values: _initValues,

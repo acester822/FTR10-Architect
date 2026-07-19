@@ -42,6 +42,7 @@ export interface RawThemeJson {
   presetCustomizations?: Record<string, Record<string, string>>;
   presetBackgroundMode?: Record<string, 'effects' | 'solid'>;
   architectSessions?: Record<string, ArchitectSession>;
+  layoutOverrides?: Record<string, { x: number; y: number }>;
 }
 
 export interface ThemePreset {
