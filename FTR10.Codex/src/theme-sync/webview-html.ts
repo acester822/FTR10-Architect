@@ -437,7 +437,15 @@ window.__FTR10_INIT__ = ${initJson};
     padding: 22px 12px 40px;
   }
 
-  /* ── title ───────────────────────────────────────────────────── */
+  .cyber-sub {
+    font-size: 0.65rem;
+    letter-spacing: 6px;
+    color: rgba(var(--ui-accent-rgb),0.35);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  /* ── title row (heading + edit-layout button) ─────────────── */
   .cyber-title {
     font-family: 'Orbitron', sans-serif;
     font-size: clamp(1.1rem, 3.5vw, 1.7rem);
@@ -450,23 +458,14 @@ window.__FTR10_INIT__ = ${initJson};
       0 0 22px rgba(var(--ui-accent-rgb),0.4),
       0 0 50px rgba(var(--ui-accent-rgb),0.2);
     margin-bottom: 4px;
-  }
-  .cyber-sub {
-    font-size: 0.65rem;
-    letter-spacing: 6px;
-    color: rgba(var(--ui-accent-rgb),0.35);
-    text-transform: uppercase;
-    margin-bottom: 20px;
-  }
-
-  /* ── title row (heading + edit-layout button) ─────────────── */
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    margin-bottom: 4px;
+    display: inline-block;
+    position: relative;
   }
   .btn-layout {
+    position: absolute;
+    left: calc(100% + 24px);
+    top: 50%;
+    transform: translateY(-50%);
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.78rem;
     font-weight: 500;
@@ -480,13 +479,14 @@ window.__FTR10_INIT__ = ${initJson};
     background: rgba(0,8,20,0.62);
     color: var(--ui-accent);
     box-shadow: 0 0 12px rgba(var(--ui-accent-rgb),0.2);
+    white-space: nowrap;
   }
   .btn-layout:hover {
     background: rgba(var(--ui-accent-rgb),0.22);
     box-shadow: 0 0 20px rgba(var(--ui-accent-rgb),0.4);
   }
   .btn-layout:active {
-    transform: scale(0.97);
+    transform: translateY(-50%) scale(0.97);
   }
   .btn-layout.active {
     background: rgba(var(--ui-accent-rgb),0.30);
@@ -498,7 +498,7 @@ window.__FTR10_INIT__ = ${initJson};
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
     max-width: 1100px;
     margin: 0 auto 18px;
@@ -1130,7 +1130,7 @@ window.__FTR10_INIT__ = ${initJson};
   }
   .left-legend-wrap {
     position: absolute;
-    right: calc(100% + 16px);
+    right: calc(100% + 4px);
     top: 0;
     display: flex;
     flex-direction: column;
@@ -1141,7 +1141,7 @@ window.__FTR10_INIT__ = ${initJson};
 
   .right-legend-wrap {
     position: absolute;
-    left: calc(100% + 16px);
+    left: calc(100% + 4px);
     top: 0;
     display: flex;
     flex-direction: column;
@@ -1585,8 +1585,7 @@ window.__FTR10_INIT__ = ${initJson};
 <canvas id="particles"></canvas>
 
 <div class="stage">
-  <div class="title-row">
-    <div class="cyber-title">FTR10 Codex</div>
+  <div class="cyber-title">FTR10 Codex
     <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
   </div>
   <div class="cyber-sub">Color Architect</div>
