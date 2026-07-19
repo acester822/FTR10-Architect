@@ -500,7 +500,7 @@ window.__FTR10_INIT__ = ${initJson};
     justify-content: center;
     gap: 4px;
     width: 100%;
-    max-width: 1100px;
+    max-width: 600px;
     margin: 0 auto 18px;
     min-height: 480px;
   }
@@ -1130,7 +1130,7 @@ window.__FTR10_INIT__ = ${initJson};
   }
   .left-legend-wrap {
     position: absolute;
-    left: calc(100% + 6px);
+    right: calc(100% + 16px);
     top: 0;
     display: flex;
     flex-direction: column;
@@ -1141,7 +1141,7 @@ window.__FTR10_INIT__ = ${initJson};
 
   .right-legend-wrap {
     position: absolute;
-    right: calc(100% + 6px);
+    left: calc(100% + 16px);
     top: 0;
     display: flex;
     flex-direction: column;
