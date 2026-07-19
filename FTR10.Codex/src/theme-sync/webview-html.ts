@@ -101,7 +101,8 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
   .btn-layout {
-    position: absolute; top: 10px; right: 12px; z-index: 30;
+    position: absolute; top: 10px; right: 12px; left: auto; bottom: auto; margin: 0;
+    flex: 0 0 auto; align-self: auto; order: 0;
     border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
     background: rgba(0,8,20,0.7);
     color: rgba(var(--ui-accent-rgb), 0.95);
@@ -825,11 +826,15 @@ window.__FTR10_INIT__ = ${initJson};
 
   /* ── Edit-Layout mode: movable panels (varTables + legend wraps) ──
      The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
+  /* A .dragged element has a SAVED position (from layoutOverrides) and keeps it
+     applied ALWAYS — not just during edit mode — so the move persists on reload. */
+  #varTables.draggable.dragged { position: absolute; left: var(--drag-x, 0px); top: var(--drag-y, 0px); z-index: 50; }
+  .left-legend-wrap.dragged,
+  .right-legend-wrap.dragged { right: auto; left: var(--drag-x, 0px); top: var(--drag-y, 0px); }
   body.edit-layout .draggable { cursor: grab; }
   body.edit-layout .draggable:active { cursor: grabbing; }
   body.edit-layout .draggable { outline: 1px dashed rgba(var(--ui-accent-rgb), 0.45); outline-offset: 2px; }
-  /* When dragging, switch absolutely-positioned legends from right/left to left/top
-     so transforms compose cleanly (no rotateY conflict — those are stone anyway). */
+  /* During an active drag (edit mode), reflect the live --drag-x/y too. */
   body.edit-layout .draggable.left-legend-wrap,
   body.edit-layout .draggable.right-legend-wrap {
     right: auto; left: var(--drag-x, 0px); top: var(--drag-y, 0px);
@@ -1364,30 +1369,13 @@ window.__FTR10_INIT__ = ${initJson};
     .right-legend-wrap { left: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
   }
   @media (max-width: 1200px) {
-    .panel-row {
-      flex-wrap: wrap;
-      justify-content: center;
-      min-height: 0;
-    }
-    .center-col {
-      width: min(100%, 360px);
-    }
-    .left-legend-wrap, .right-legend-wrap { display: none; }
+    /* Keep swatch panels flanking the wheel horizontally; never stack them.
+       Only hide the RIGHT swatch cluster when truly narrow. */
+    .right-cluster { display: none; }
+    .panel-row { grid-template-columns: auto minmax(0, 1fr); }
+    .left-legend-wrap { right: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
+    .right-legend-wrap { left: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
     .legend-panel.mobile { display: block; }
-    .tables-below {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin: 12px 0 0 0;
-      width: 100%;
-      justify-content: center;
-    }
-    .tables-below > * {
-      min-width: 160px;
-      max-width: 240px;
-      flex: 1 1 160px;
-    }
   }
 
   @media (max-width: 1280px) {
@@ -1819,6 +1807,7 @@ __wvTrace('architect-script-init', {});
       const el = elFor(id); if (!el || !ov[id]) return;
       el.style.setProperty('--drag-x', ov[id].x + 'px');
       el.style.setProperty('--drag-y', ov[id].y + 'px');
+      el.classList.add('dragged'); // persist position even outside edit mode
     });
   }
   window.__applyLayoutOverrides = applyOverrides;
