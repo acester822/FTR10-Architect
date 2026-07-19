@@ -101,7 +101,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
   .btn-layout {
-    margin-left: auto; order: 2;
+    position: absolute; top: 10px; right: 12px; z-index: 30;
     border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
     background: rgba(0,8,20,0.7);
     color: rgba(var(--ui-accent-rgb), 0.95);
@@ -238,7 +238,6 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   <div class="header">
     <h2>FTR10 Architect</h2>
     <p>Base cards give you a starting point. They are fully editable — make them yours. Reset to restore defaults.</p>
-    <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
   </div>
 
   <!-- Architect entry card — always visible, opens blank session -->
@@ -1576,6 +1575,7 @@ window.__FTR10_INIT__ = ${initJson};
 <div class="stage">
   <div class="cyber-title">FTR10 Codex</div>
   <div class="cyber-sub">Color Architect</div>
+  <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
 
   <div class="panel-row">
     <!-- left cluster: swatches + floating left-side tables -->
@@ -1823,6 +1823,7 @@ __wvTrace('architect-script-init', {});
   }
   window.__applyLayoutOverrides = applyOverrides;
   const btn = document.getElementById('editLayoutBtn');
+  if (!btn) return; // button absent in this context (e.g. sidebar) — never abort the script.
   let dragging = null; // { el, id, offX, offY }
   function enterEdit() {
     document.body.classList.add('edit-layout');
