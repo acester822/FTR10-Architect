@@ -101,37 +101,6 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   .header { margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    margin-bottom: 4px;
-  }
-  .btn-layout {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border-radius: 20px;
-    border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
-    background: rgba(var(--ui-accent-rgb), 0.08);
-    color: rgba(var(--ui-accent-rgb), 0.85);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px; font-weight: 600;
-    letter-spacing: 1px; text-transform: uppercase;
-    padding: 4px 12px; cursor: pointer;
-    transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
-    line-height: 1.4;
-  }
-  .btn-layout:hover {
-    background: rgba(var(--ui-accent-rgb), 0.18);
-    border-color: rgba(var(--ui-accent-rgb), 0.55);
-    box-shadow: 0 0 12px rgba(var(--ui-accent-rgb), 0.25);
-  }
-  .btn-layout.active {
-    background: rgba(var(--ui-accent-rgb), 0.25);
-    border-color: rgba(var(--ui-accent-rgb), 0.6);
-    box-shadow: 0 0 16px rgba(var(--ui-accent-rgb), 0.35);
-  }
 
   .session-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -490,6 +459,40 @@ window.__FTR10_INIT__ = ${initJson};
     margin-bottom: 20px;
   }
 
+  /* ── title row (heading + edit-layout button) ─────────────── */
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 4px;
+  }
+  .btn-layout {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,8,20,0.62);
+    color: var(--ui-accent);
+    box-shadow: 0 0 12px rgba(var(--ui-accent-rgb),0.2);
+  }
+  .btn-layout:hover {
+    background: rgba(var(--ui-accent-rgb),0.22);
+    box-shadow: 0 0 20px rgba(var(--ui-accent-rgb),0.4);
+  }
+  .btn-layout:active {
+    transform: scale(0.97);
+  }
+  .btn-layout.active {
+    background: rgba(var(--ui-accent-rgb),0.30);
+    box-shadow: 0 0 20px rgba(var(--ui-accent-rgb),0.5);
+  }
+
   /* ── three-panel row (stone layout: swatches flank the wheel, centered) ── */
   .panel-row {
     display: flex;
@@ -507,7 +510,7 @@ window.__FTR10_INIT__ = ${initJson};
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: 4px;
     padding-top: 0;
   }
 
@@ -797,7 +800,7 @@ window.__FTR10_INIT__ = ${initJson};
   }
 
   .var-tables {
-    margin-top: 10px;
+    margin-top: 2px;
     padding: 6px 10px 14px;
     border-top: 1px solid rgba(var(--ui-border-rgb), 0.25);
     max-height: 46vh;
