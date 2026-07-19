@@ -101,18 +101,37 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   .header { margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
-  .btn-layout {
-    position: static; align-self: flex-end; margin: 0 14px 8px 0; order: -1;
-    border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
-    background: rgba(0,8,20,0.7);
-    color: rgba(var(--ui-accent-rgb), 0.95);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.74rem; letter-spacing: 1px; text-transform: uppercase;
-    padding: 6px 12px; border-radius: 6px; cursor: pointer;
-    transition: background 0.15s, box-shadow 0.15s;
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 4px;
   }
-  .btn-layout:hover { background: rgba(var(--ui-accent-rgb), 0.22); box-shadow: 0 0 20px rgba(var(--ui-accent-rgb), 0.4); }
-  .btn-layout.active { background: rgba(var(--ui-accent-rgb), 0.35); box-shadow: 0 0 20px rgba(var(--ui-accent-rgb), 0.5); }
+  .btn-layout {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 20px;
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
+    background: rgba(var(--ui-accent-rgb), 0.08);
+    color: rgba(var(--ui-accent-rgb), 0.85);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 4px 12px; cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
+    line-height: 1.4;
+  }
+  .btn-layout:hover {
+    background: rgba(var(--ui-accent-rgb), 0.18);
+    border-color: rgba(var(--ui-accent-rgb), 0.55);
+    box-shadow: 0 0 12px rgba(var(--ui-accent-rgb), 0.25);
+  }
+  .btn-layout.active {
+    background: rgba(var(--ui-accent-rgb), 0.25);
+    border-color: rgba(var(--ui-accent-rgb), 0.6);
+    box-shadow: 0 0 16px rgba(var(--ui-accent-rgb), 0.35);
+  }
 
   .session-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -824,12 +843,8 @@ window.__FTR10_INIT__ = ${initJson};
     cursor: grab;
     outline: 1px dashed rgba(var(--ui-accent-rgb), 0.45);
     outline-offset: 2px;
-    /* During edit, all draggables become absolute at their seeded --drag-x/y
-       so they stay visually in place when we switch containing block to .stage. */
-    position: absolute !important;
-    left: var(--drag-x, 0px) !important;
-    top: var(--drag-y, 0px) !important;
-    right: auto !important;
+    /* Only ABSOLUTE elements that have been dragged get repositioned.
+       Non-dragged draggables stay in flow — no position shift on toggle. */
     z-index: 60;
   }
   body.edit-layout .draggable:active { cursor: grabbing; }
@@ -1567,9 +1582,11 @@ window.__FTR10_INIT__ = ${initJson};
 <canvas id="particles"></canvas>
 
 <div class="stage">
-  <div class="cyber-title">FTR10 Codex</div>
+  <div class="title-row">
+    <div class="cyber-title">FTR10 Codex</div>
+    <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
+  </div>
   <div class="cyber-sub">Color Architect</div>
-  <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
 
   <div class="panel-row">
     <!-- left cluster: swatches + floating left-side tables -->
