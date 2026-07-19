@@ -1699,7 +1699,7 @@ window.__FTR10_INIT__ = ${initJson};
           </div>
         </div>
       </div>
-      <div class="right-legend-wrap draggable">
+      <div class="right-legend-wrap">
         <div class="quick-panel draggable" id="fontsPanel">
           <div class="hud-title">Fonts</div>
           <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
@@ -1795,7 +1795,7 @@ __wvTrace('architect-script-init', {});
 // ── Edit-Layout mode: drag movable panels (varTables + legend wraps) ──
 // Stone set (ep-wrap / center-col / clusters) is NEVER draggable.
 (function initLayoutDrag() {
-  const MOVABLE = ['varTables', 'left-legend-wrap', 'right-legend-wrap', 'fontsPanel', 'opacityPanel', 'fontsPanel_below', 'opacityPanel_below', 'bgPanel_below', 'colorLegendDesktop'];
+  const MOVABLE = ['varTables', 'left-legend-wrap', 'fontsPanel', 'opacityPanel', 'fontsPanel_below', 'opacityPanel_below', 'bgPanel_below', 'colorLegendDesktop'];
   const stage = document.querySelector('.stage') || document.body;
   function elFor(id) {
     if (id === 'varTables') return document.getElementById('varTables');
@@ -1803,6 +1803,10 @@ __wvTrace('architect-script-init', {});
       return document.getElementById(id) || document.querySelector('.' + id);
     }
     return document.getElementById(id) || document.querySelector('.' + id);
+  }
+  function getParentRect(el) {
+    const p = el.offsetParent || stage;
+    return { parent: p, rect: p.getBoundingClientRect() };
   }
   function commit(id, x, y) {
     const ov = Object.assign({}, window.__layoutOverrides || {});
@@ -1834,30 +1838,28 @@ __wvTrace('architect-script-init', {});
   };
   const btn = document.getElementById('editLayoutBtn');
   if (!btn) return;
-  let dragging = null; // { el, id, offX, offY, moved }
+  let dragging = null; // { el, id, offX, offY, moved, parent, parentRect }
   const movedInSession = new Set();
   function enterEdit() {
-    document.body.classList.add('edit-layout');
-    btn.classList.add('active');
-    movedInSession.clear();
+    // Seed positions BEFORE adding edit-layout class, using offsetParent-relative coords
+    // so there is no visual jump when we switch to left/top absolute.
     MOVABLE.forEach(id => {
       const el = elFor(id); if (!el) return;
-      // Seed position from current bounding rect so switch to stage-absolute doesn't jump.
-      // For already-dragged elements, the current rect already equals saved position, so seed is same.
+      const { parent, rect: pr } = getParentRect(el);
       const r = el.getBoundingClientRect();
-      const sr = stage.getBoundingClientRect();
-      // If not yet seeded (no inline --drag-x), seed now. If already has saved pos, keep it but ensure consistent.
-      if (!el.style.getPropertyValue('--drag-x')) {
-        el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
-        el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+      if (!el.classList.contains('dragged')) {
+        el.style.setProperty('--drag-x', (r.left - pr.left) + 'px');
+        el.style.setProperty('--drag-y', (r.top - pr.top) + 'px');
       } else {
-        // Re-sync from actual rect to avoid drift after window resize while in edit? Keep existing if dragged.
-        if (!el.classList.contains('dragged')) {
-          el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
-          el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+        if (!el.style.getPropertyValue('--drag-x')) {
+          el.style.setProperty('--drag-x', (r.left - pr.left) + 'px');
+          el.style.setProperty('--drag-y', (r.top - pr.top) + 'px');
         }
       }
     });
+    document.body.classList.add('edit-layout');
+    btn.classList.add('active');
+    movedInSession.clear();
   }
   function exitEdit() {
     document.body.classList.remove('edit-layout');
@@ -1886,7 +1888,8 @@ __wvTrace('architect-script-init', {});
       : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
     if (!id) return;
     const r = el.getBoundingClientRect();
-    dragging = { el, id, offX: e.clientX - r.left, offY: e.clientY - r.top, moved: false, startX: e.clientX, startY: e.clientY };
+    const { parent, rect: pr } = getParentRect(el);
+    dragging = { el, id, parent, offX: e.clientX - r.left, offY: e.clientY - r.top, moved: false, startX: e.clientX, startY: e.clientY };
     try { el.setPointerCapture(e.pointerId); } catch(_){}
   });
   document.addEventListener('pointermove', (e) => {
@@ -1898,9 +1901,10 @@ __wvTrace('architect-script-init', {});
       movedInSession.add(dragging.id);
       dragging.el.classList.add('dragged');
     }
-    const sr = stage.getBoundingClientRect();
-    const x = e.clientX - sr.left - dragging.offX;
-    const y = e.clientY - sr.top - dragging.offY;
+    // Recompute parent rect each move (parent may scroll)
+    const pr = (dragging.parent || stage).getBoundingClientRect();
+    const x = e.clientX - pr.left - dragging.offX;
+    const y = e.clientY - pr.top - dragging.offY;
     dragging.el.style.setProperty('--drag-x', x + 'px');
     dragging.el.style.setProperty('--drag-y', y + 'px');
   });
@@ -1925,20 +1929,14 @@ __wvTrace('architect-script-init', {});
     el.classList.remove('dragged');
     el.style.removeProperty('--drag-x');
     el.style.removeProperty('--drag-y');
-    // After clearing, re-seed so it doesn't jump while still in edit mode
-    const r = el.getBoundingClientRect();
-    const sr = stage.getBoundingClientRect();
-    // But we don't want it absolute anymore — remove edit absolute by temporarily clearing edit?
-    // Instead, force it back to default flow by removing edit mode for this element?
-    // Simplest: commit removal and exit/re-enter logic: just commitRemoval
     commitRemoval(id);
     // Re-seed for visual stability if staying in edit mode: compute default layout position after removal
     requestAnimationFrame(() => {
       if (!document.body.classList.contains('edit-layout')) return;
+      const { rect: pr } = getParentRect(el);
       const nr = el.getBoundingClientRect();
-      const nsr = stage.getBoundingClientRect();
-      el.style.setProperty('--drag-x', (nr.left - nsr.left) + 'px');
-      el.style.setProperty('--drag-y', (nr.top - nsr.top) + 'px');
+      el.style.setProperty('--drag-x', (nr.left - pr.left) + 'px');
+      el.style.setProperty('--drag-y', (nr.top - pr.top) + 'px');
     });
   });
 })();
