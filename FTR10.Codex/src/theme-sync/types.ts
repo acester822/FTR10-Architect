@@ -28,6 +28,9 @@ export interface ThemeConfig {
   presetCustomizations: Record<string, Record<string, string>>;
   presetBackgroundMode: Record<string, 'effects' | 'solid'>;
   architectSessions: Record<string, ArchitectSession>;
+  // Persisted drag positions for movable panels (varTables + legend wraps).
+  // Keyed by element id; only set after the user repositions in Edit-Layout mode.
+  layoutOverrides?: Record<string, { x: number; y: number }>;
 }
 
 export interface RawThemeJson {

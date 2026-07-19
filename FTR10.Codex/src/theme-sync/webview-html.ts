@@ -97,9 +97,21 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   html::-webkit-scrollbar-thumb { background: #ffffff2e; border-radius: 3px; }
   html::-webkit-scrollbar-thumb:hover { background: #ffffff52; }
 
-  .header { margin-bottom: 14px; }
+  .header { margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-  .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; }
+  .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
+  .btn-layout {
+    margin-left: auto; order: 2;
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
+    background: rgba(0,8,20,0.7);
+    color: rgba(var(--ui-accent-rgb), 0.95);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem; letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 12px; border-radius: 6px; cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn-layout:hover { background: rgba(var(--ui-accent-rgb), 0.22); box-shadow: 0 0 20px rgba(var(--ui-accent-rgb), 0.4); }
+  .btn-layout.active { background: rgba(var(--ui-accent-rgb), 0.35); box-shadow: 0 0 20px rgba(var(--ui-accent-rgb), 0.5); }
 
   .session-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -226,6 +238,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   <div class="header">
     <h2>FTR10 Architect</h2>
     <p>Base cards give you a starting point. They are fully editable — make them yours. Reset to restore defaults.</p>
+    <button class="btn-layout" id="editLayoutBtn" title="Toggle Edit-Layout mode (drag panels)">⚙ Edit Layout</button>
   </div>
 
   <!-- Architect entry card — always visible, opens blank session -->
@@ -460,16 +473,23 @@ window.__FTR10_INIT__ = ${initJson};
     margin-bottom: 20px;
   }
 
-  /* ── three-panel row ─────────────────────────────────────────── */
+  /* ── three-panel row (stone layout: swatches flank the wheel, centered) ── */
   .panel-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
     justify-content: center;
     gap: 0;
     width: 100%;
     max-width: 860px;
-    margin-bottom: 18px;
+    margin: 0 auto 18px;
     min-height: 480px;
+  }
+  /* Below ~1100px the side clusters drop below the wheel but stay centered,
+     preserving the swatch-flanks-wheel arrangement instead of squeezing. */
+  @media (max-width: 1100px) {
+    .panel-row { grid-template-columns: 1fr; justify-items: center; }
+    .left-cluster, .right-cluster { display: flex; flex-direction: column; align-items: center; }
   }
   .center-col {
     flex: 1 1 auto;
@@ -803,6 +823,21 @@ window.__FTR10_INIT__ = ${initJson};
     font-size: 0.66rem;
   }
   .var-tables .v-group[open] > .v-group-header { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+  /* ── Edit-Layout mode: movable panels (varTables + legend wraps) ──
+     The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
+  body.edit-layout .draggable { cursor: grab; }
+  body.edit-layout .draggable:active { cursor: grabbing; }
+  body.edit-layout .draggable { outline: 1px dashed rgba(var(--ui-accent-rgb), 0.45); outline-offset: 2px; }
+  /* When dragging, switch absolutely-positioned legends from right/left to left/top
+     so transforms compose cleanly (no rotateY conflict — those are stone anyway). */
+  body.edit-layout .draggable.left-legend-wrap,
+  body.edit-layout .draggable.right-legend-wrap {
+    right: auto; left: var(--drag-x, 0px); top: var(--drag-y, 0px);
+  }
+  body.edit-layout #varTables.draggable {
+    position: absolute; left: var(--drag-x, 0px); top: var(--drag-y, 0px); z-index: 50;
+  }
 
   /* ── color override modal ─────────────────────────────────────── */
   .override-modal-bg {
@@ -1567,7 +1602,7 @@ window.__FTR10_INIT__ = ${initJson};
     </div>
 
     <!-- left-side floating tables: Palette, Status, Backgrounds, Fonts, Opacity -->
-    <div class="left-legend-wrap">
+    <div class="left-legend-wrap draggable">
       <div class="legend-panel desktop" id="colorLegendDesktop"></div>
       <div class="hud" style="pointer-events:none">
         <div class="hud-title">Status</div>
@@ -1643,7 +1678,7 @@ window.__FTR10_INIT__ = ${initJson};
       <!-- Per-section variable tables (replaces the removed Advanced Editor).
            Each section from varsState.sections renders as a collapsible table;
            edits write to the single varsState.values via liveUpdate. -->
-      <div id="varTables" class="var-tables"></div>
+      <div id="varTables" class="var-tables draggable"></div>
 
       <div class="legend-panel mobile" id="colorLegendMobile"></div>
     </div>
@@ -1670,7 +1705,7 @@ window.__FTR10_INIT__ = ${initJson};
           </div>
         </div>
       </div>
-      <div class="right-legend-wrap">
+      <div class="right-legend-wrap draggable">
         <div class="quick-panel" id="fontsPanel">
           <div class="hud-title">Fonts</div>
           <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
@@ -1762,6 +1797,82 @@ function __wvTrace(event, data) {
 }
 window.__ftr10DumpTrace = function() { try { console.table(window.__ftr10WvTrace); } catch (_e) { console.log(window.__ftr10WvTrace); } return window.__ftr10WvTrace; };
 __wvTrace('architect-script-init', {});
+
+// ── Edit-Layout mode: drag movable panels (varTables + legend wraps) ──
+// Stone set (ep-wrap / center-col / clusters) is NEVER draggable.
+(function initLayoutDrag() {
+  const MOVABLE = ['varTables', 'left-legend-wrap', 'right-legend-wrap'];
+  const stage = document.querySelector('.stage') || document.body;
+  function elFor(id) {
+    if (id === 'varTables') return document.getElementById('varTables');
+    return document.querySelector('.' + id);
+  }
+  function commit(id, x, y) {
+    const ov = window.__layoutOverrides || {};
+    ov[id] = { x: Math.round(x), y: Math.round(y) };
+    window.__layoutOverrides = ov;
+    vscode.postMessage({ command: 'saveLayout', overrides: ov });
+  }
+  function applyOverrides(ov) {
+    if (!ov) return;
+    MOVABLE.forEach(id => {
+      const el = elFor(id); if (!el || !ov[id]) return;
+      el.style.setProperty('--drag-x', ov[id].x + 'px');
+      el.style.setProperty('--drag-y', ov[id].y + 'px');
+    });
+  }
+  window.__applyLayoutOverrides = applyOverrides;
+  const btn = document.getElementById('editLayoutBtn');
+  let dragging = null; // { el, id, offX, offY }
+  function enterEdit() {
+    document.body.classList.add('edit-layout');
+    btn.classList.add('active');
+    // Seed each movable el with a current position so transforms start clean.
+    MOVABLE.forEach(id => {
+      const el = elFor(id); if (!el) return;
+      const r = el.getBoundingClientRect();
+      const sr = stage.getBoundingClientRect();
+      el.style.setProperty('--drag-x', (r.left - sr.left) + 'px');
+      el.style.setProperty('--drag-y', (r.top - sr.top) + 'px');
+    });
+  }
+  function exitEdit() {
+    document.body.classList.remove('edit-layout');
+    btn.classList.remove('active');
+    MOVABLE.forEach(id => { const el = elFor(id); if (el) commit(id,
+      parseFloat(el.style.getPropertyValue('--drag-x')) || 0,
+      parseFloat(el.style.getPropertyValue('--drag-y')) || 0); });
+  }
+  btn.addEventListener('click', () => {
+    if (document.body.classList.contains('edit-layout')) exitEdit(); else enterEdit();
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('edit-layout')) return;
+    const el = (e.target).closest('.draggable'); if (!el) return;
+    const id = el.id || (el.classList.contains('left-legend-wrap') ? 'left-legend-wrap'
+      : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
+    if (!id) return;
+    const r = el.getBoundingClientRect();
+    dragging = { el, id, offX: e.clientX - r.left, offY: e.clientY - r.top };
+    el.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const sr = stage.getBoundingClientRect();
+    const x = e.clientX - sr.left - dragging.offX;
+    const y = e.clientY - sr.top - dragging.offY;
+    dragging.el.style.setProperty('--drag-x', x + 'px');
+    dragging.el.style.setProperty('--drag-y', y + 'px');
+  });
+  document.addEventListener('pointerup', (e) => {
+    if (!dragging) return;
+    const d = dragging; dragging = null;
+    try { d.el.releasePointerCapture(e.pointerId); } catch (_) {}
+    commit(d.id,
+      parseFloat(d.el.style.getPropertyValue('--drag-x')) || 0,
+      parseFloat(d.el.style.getPropertyValue('--drag-y')) || 0);
+  });
+})();
 
 // ── wheel setup ──────────────────────────────────────────────────────────────
 const canvas = document.getElementById('hueWheel');
@@ -2449,6 +2560,10 @@ window.addEventListener('message', (e) => {
     _varsLiveTimer = null;
     currentSessionId = s.id;
     sessionName = s.name;
+    // Restore saved panel drag positions (Edit-Layout mode). Applied after init.
+    if (window.__applyLayoutOverrides && msg.config && msg.config.layoutOverrides) {
+      window.__applyLayoutOverrides(msg.config.layoutOverrides);
+    }
     baseHue = typeof s.baseHue === 'number' ? s.baseHue : baseHue;
     harmony = s.harmony || harmony;
     // Restore swatch overrides

@@ -391,6 +391,13 @@ function handleMessage(msg: any): void {
     return;
   }
 
+  if (msg.command === 'saveLayout' && msg.overrides) {
+    // Persist drag positions for movable panels (Edit-Layout mode).
+    state.store.themeConfig.layoutOverrides = msg.overrides;
+    persistThemeConfig();
+    return;
+  }
+
   if (msg.command === 'reset') {
     const presetId = state.store.themeConfig.activePreset;
     if (presetId) {
