@@ -469,6 +469,7 @@ export function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string
     presetCustomizations: state.store.themeConfig.presetCustomizations,
     presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
     architectSessions: state.store.themeConfig.architectSessions,
+    layoutOverrides: state.store.themeConfig.layoutOverrides,
     lastModified: Date.now()
   }, null, 2));
   // Fast path: only update css files, vars.json, shim.js and live relay — skip heavy token writes

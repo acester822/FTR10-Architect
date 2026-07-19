@@ -123,7 +123,8 @@ export function flattenConfig(raw: RawThemeJson): ThemeConfig {
       activePreset: raw.activePreset,
       presetCustomizations: pc,
       presetBackgroundMode: raw.presetBackgroundMode || {},
-      architectSessions: as_
+      architectSessions: as_,
+      layoutOverrides: raw.layoutOverrides
     };
   }
   if (v && typeof v === 'object' && !('sections' in v)) {
@@ -135,10 +136,11 @@ export function flattenConfig(raw: RawThemeJson): ThemeConfig {
       activePreset: raw.activePreset,
       presetCustomizations: pc,
       presetBackgroundMode: raw.presetBackgroundMode || {},
-      architectSessions: as_
+      architectSessions: as_,
+      layoutOverrides: raw.layoutOverrides
     };
   }
-  return { sections: [], values: {}, cssImports: raw.cssImports || [], customCss: raw.customCss || '', activePreset: raw.activePreset, presetCustomizations: pc, presetBackgroundMode: raw.presetBackgroundMode || {}, architectSessions: as_ };
+  return { sections: [], values: {}, cssImports: raw.cssImports || [], customCss: raw.customCss || '', activePreset: raw.activePreset, presetCustomizations: pc, presetBackgroundMode: raw.presetBackgroundMode || {}, architectSessions: as_, layoutOverrides: raw.layoutOverrides };
 }
 
 function replaceCssVarRobust(css: string, key: string, newVal: string): string {

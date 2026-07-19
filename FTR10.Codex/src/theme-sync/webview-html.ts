@@ -101,8 +101,7 @@ export function getSidebarHtml(activePreset?: string, accentColor?: string, valu
   .header h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .header p { font-size: 11px; opacity: 0.6; line-height: 1.5; flex: 1 1 100%; order: 3; }
   .btn-layout {
-    position: absolute; top: 10px; right: 12px; left: auto; bottom: auto; margin: 0;
-    flex: 0 0 auto; align-self: auto; order: 0;
+    position: static; align-self: flex-end; margin: 0 14px 8px 0; order: -1;
     border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
     background: rgba(0,8,20,0.7);
     color: rgba(var(--ui-accent-rgb), 0.95);
@@ -488,7 +487,9 @@ window.__FTR10_INIT__ = ${initJson};
   /* Below ~1100px the side clusters drop below the wheel but stay centered,
      preserving the swatch-flanks-wheel arrangement instead of squeezing. */
   @media (max-width: 1100px) {
-    .panel-row { grid-template-columns: 1fr; justify-items: center; }
+    /* Keep swatch panels flanking the wheel (never stack). The <1200px rule
+       already drops the right cluster at narrow widths. */
+    .panel-row { grid-template-columns: auto minmax(0, 1fr); }
     .left-cluster, .right-cluster { display: flex; flex-direction: column; align-items: center; }
   }
   .center-col {
@@ -1095,30 +1096,28 @@ window.__FTR10_INIT__ = ${initJson};
     flex: 0 0 auto;
   }
   .left-legend-wrap {
-    position: absolute;
-    right: calc(100% + 8px);
-    top: 0;
-    left: auto;
+    position: relative;
+    order: -1;
+    left: auto; right: auto; top: auto;
     transform: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
     width: clamp(172px, 17vw, 210px);
-    margin-top: 0;
+    margin-bottom: 10px;
     z-index: 20;
   }
 
   .right-legend-wrap {
-    position: absolute;
-    left: calc(100% + 8px);
-    top: 0;
-    right: auto;
+    position: relative;
+    order: -1;
+    left: auto; right: auto; top: auto;
     transform: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
     width: clamp(172px, 17vw, 210px);
-    margin-top: 0;
+    margin-bottom: 10px;
     z-index: 20;
   }
 
@@ -1365,16 +1364,14 @@ window.__FTR10_INIT__ = ${initJson};
   }
 
   @media (max-width: 1400px) {
-    .left-legend-wrap { right: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
-    .right-legend-wrap { left: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
+    .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
   }
   @media (max-width: 1200px) {
     /* Keep swatch panels flanking the wheel horizontally; never stack them.
        Only hide the RIGHT swatch cluster when truly narrow. */
     .right-cluster { display: none; }
     .panel-row { grid-template-columns: auto minmax(0, 1fr); }
-    .left-legend-wrap { right: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
-    .right-legend-wrap { left: calc(100% + 6px); width: clamp(158px, 15vw, 196px); }
+    .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
     .legend-panel.mobile { display: block; }
   }
 
