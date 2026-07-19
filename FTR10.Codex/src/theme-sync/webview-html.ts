@@ -1380,42 +1380,6 @@ window.__FTR10_INIT__ = ${initJson};
     box-shadow: 0 0 0 1px rgba(var(--ui-accent-rgb),1), 0 0 12px rgba(var(--ui-accent-rgb),0.55);
   }
 
-  /* ── responsive collapse ─────────────────────────────────────── */
-  @media (max-width: 420px) {
-    .swatch-panel { display: none; }
-    .panel-row { justify-content: center; flex-wrap: wrap; }
-    .legend-wrap { display: none; }
-    .legend-panel.mobile {
-      display: block;
-      width: min(96vw, 340px);
-      max-height: 30vh;
-    }
-    .left-legend-wrap, .right-legend-wrap { display: none; }
-  }
-
-  @media (max-width: 1400px) {
-    .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
-  }
-  @media (max-width: 1200px) {
-    /* Keep both swatch clusters flanking the wheel; only shrink legend width */
-    .left-legend-wrap, .right-legend-wrap { width: clamp(158px, 15vw, 196px); }
-    .legend-panel.mobile { display: none; }
-  }
-
-  @media (max-width: 1280px) {
-    .legend-wrap {
-      left: calc(100% + 6px);
-    }
-    .legend-panel {
-      width: clamp(168px, 20vw, 196px);
-    }
-  }
-
-  @media (max-width: 1080px) {
-    .legend-wrap { display: none; }
-    .legend-panel.mobile { display: block; }
-  }
-
   /* ── vars panel ───────────────────────────────────────────────── */
   .vars-panel {
     position: relative; z-index: 2;
@@ -2864,14 +2828,9 @@ function _qpFontValToName(val) {
 }
 
 function renderQuickPanels() {
-  // Determine if the floating side panels are visible or if we're in stacked mode
-  const rlw = document.querySelector('.right-legend-wrap');
-  const below = !rlw || getComputedStyle(rlw).display === 'none';
-  const tb = document.querySelector('.tables-below');
-  if (tb) tb.style.display = below ? 'flex' : 'none';
-
-  let fp = below ? document.getElementById('fontsPanel_below') : document.querySelector('.right-legend-wrap #fontsPanel');
-  let op = below ? document.getElementById('opacityPanel_below') : document.querySelector('.right-legend-wrap #opacityPanel');
+  // Always use the floating side panels (no more responsive stacked mode)
+  let fp = document.querySelector('.right-legend-wrap #fontsPanel');
+  let op = document.querySelector('.right-legend-wrap #opacityPanel');
   const vals = varsState.values;
 
   if (fp) {
@@ -3084,7 +3043,6 @@ function syncBgToggleState(values) {
 })();
 
 window.addEventListener('resize', () => {
-  renderQuickPanels();
   syncBgToggleState(varsState.values);
 });
 
