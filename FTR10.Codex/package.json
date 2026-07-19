@@ -143,10 +143,6 @@
         "category": "Markdown"
       },
       {
-        "command": "themeSync.openPanel",
-        "title": "FTR10 Codex: Open Theme Editor"
-      },
-      {
         "command": "themeSync.patchWorkbench",
         "title": "FTR10 Codex: Patch workbench"
       },
@@ -751,7 +747,6 @@
     "onLanguage:markdown",
     "onLanguage:quarto",
     "onView:themeSync.sidebar",
-    "onCommand:themeSync.openPanel",
     "onCommand:themeSync.patchWorkbench"
   ],
   "husky": {

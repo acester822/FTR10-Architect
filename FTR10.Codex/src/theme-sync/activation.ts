@@ -9,7 +9,7 @@ import { presetToBaseSession, deriveCodexPreset, computeSessionVarDiff } from '.
 import { migrateConfig, buildDefaultConfig, flattenConfig, regenerateColorsCss, updateAllCssFiles, writeColorsCss, getPresetBgMode, getBasePresetValues, applyPreset } from './config';
 import { sourceP10kInTerminals, writeThemeTokenColors, writeTokenColors, writeTerminalColors } from './css';
 import { writeVarsJson, generateShim } from './shim';
-import { buildSessionCardsHtml, getSidebarHtml, getCodexHtml, getEditorHtml } from './webview-html';
+import { buildSessionCardsHtml, getSidebarHtml, getCodexHtml } from './webview-html';
 import * as state from './state';
 import { isPanelAlive } from './state';
 
@@ -125,18 +125,11 @@ export function activateThemeSync(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider('themeSync.sidebar', state.store.sidebarProvider)
   );
 
-  const openPanelCmd = vscode.commands.registerCommand('themeSync.openPanel', () => {
-    if (state.store.panel) state.store.panel.reveal(vscode.ViewColumn.One);
-    else createPanel(context);
-  });
-
   const patchCmd = vscode.commands.registerCommand('themeSync.patchWorkbench', () => patchWorkbench(state.store.profilePath));
 
   const applyPresetCmd = vscode.commands.registerCommand('themeSync.applyPreset', (presetId: string) => {
     applyPreset(presetId);
   });
-
-  context.subscriptions.push(openPanelCmd, patchCmd, applyPresetCmd);
 
   // Auto-refresh the workbench patch (pre-paint critical CSS + shim tag) on every
   // activation, so the anti-flash pre-paint <style> stays in sync with the current
@@ -270,22 +263,6 @@ export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
   }
 }
 
-// When the Advanced Editor edits the active session card (activePreset === 'arch-<id>'),
-// fold the editor's changed values into that card's varOverrides so the card carries the
-// edit. Without this, editor changes land only in the global theme config and are reverted
-// the moment you switch to / reload the card (which restores the card's palette-derived
-// values via deriveCodexPreset + varOverrides). Mirrors how saveSession persists varOverrides.
-function propagateEditorValuesToCard(presetId: string | undefined, values: Record<string, string>): void {
-  if (!presetId || !presetId.startsWith('arch-')) return;
-  const sid = presetId.slice(5);
-  const session = state.store.themeConfig.architectSessions[sid];
-  if (!session) return;
-  session.varOverrides = computeSessionVarDiff(session, values || {});
-  session.updatedAt = Date.now();
-  state.store.themeConfig.architectSessions[sid] = session;
-  state.store.sidebarProvider?.syncSessions();
-}
-
 function handleMessage(msg: any): void {
   if (msg.command === 'getConfig') {
     if (state.store.panel) {
@@ -373,9 +350,6 @@ function handleMessage(msg: any): void {
       console.error('[FTR10] liveUpdate persistThemeConfig failed:', e);
       vscode.window.showErrorMessage('FTR10 live-update failed: ' + msgTxt);
     }
-    // Fold the editor's live edit into the active session card (if any) so it
-    // survives switching / reloading the card. See propagateEditorValuesToCard().
-    propagateEditorValuesToCard(state.store.themeConfig.activePreset, newValues);
     state.store.sidebarProvider?.syncActivePreset();
     return;
   }
@@ -411,9 +385,6 @@ function handleMessage(msg: any): void {
     }
 
     persistThemeConfig();
-    // Fold the editor's edit into the active session card (if any) so it survives
-    // switching / reloading the card — see propagateEditorValuesToCard().
-    propagateEditorValuesToCard(presetId, newValues);
     state.store.sidebarProvider?.syncActivePreset();
     sourceP10kInTerminals();
     vscode.window.showInformationMessage('Theme applied.');
@@ -438,7 +409,6 @@ function handleMessage(msg: any): void {
       state.store.themeConfig.activePreset = fresh.activePreset;
     }
     persistThemeConfig();
-    if (state.store.panel) state.store.panel.webview.html = getEditorHtml(state.store.themeConfig);
     state.store.sidebarProvider?.syncActivePreset();
     const presetName = THEME_PRESETS.find(p => p.id === presetId)?.name || 'defaults';
     vscode.window.showInformationMessage(`Theme reset to ${presetName} defaults.`);
@@ -554,19 +524,6 @@ export function pushVarsLive(values: Record<string, string>): void {
     try { vw.webview.postMessage(msg); } catch (_) {}
   }
   state.store.sidebarProvider?.pushVars(values);
-}
-
-function createPanel(context: vscode.ExtensionContext): void {
-  state.store.panel = vscode.window.createWebviewPanel('themeSyncPanel', 'FTR10 Theme Editor', vscode.ViewColumn.One, {
-    enableScripts: true,
-    retainContextWhenHidden: true,
-    localResourceRoots: [vscode.Uri.file(path.join(process.env.HOME || require('os').homedir(), '.ftr10'))]
-  });
-  state.store.panel.webview.html = getEditorHtml(state.store.themeConfig);
-  const _panelRef = state.store.panel;
-  state.store.panel.onDidDispose(() => { unregisterLivePanel(_panelRef); state.store.panel = undefined; }, null, context.subscriptions);
-  registerLivePanel(state.store.panel);
-  state.store.panel.webview.onDidReceiveMessage(handleMessage, undefined, context.subscriptions);
 }
 
 function updateWebviewUI(): void {
@@ -729,13 +686,6 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
         }
       } catch { /* ignore */ }
       state.store.CodexPanel?.webview.postMessage({ command: 'architectConfig', config: state.store.themeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: state.store.themeConfig.activePreset, values: state.store.themeConfig.values, bgImages });
-    }
-
-    if (msg.command === 'openEditor') {
-      // Open the full "FTR10 Theme Editor" (Advanced Editor) panel as the single
-      // place to edit every theme variable. The color-wheel GUI no longer has an
-      // inline vars pane — its "⚙ Variables" button routes here.
-      vscode.commands.executeCommand('themeSync.openPanel');
     }
 
     if (msg.command === 'liveUpdate' && msg.values) {
