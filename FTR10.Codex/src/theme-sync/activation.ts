@@ -585,8 +585,8 @@ function applyArchitectSession(sessionId: string): void {
 }
 
 function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string): void {
-  if (state.store.CodexPanel) {
-    state.store.CodexPanel.reveal(vscode.ViewColumn.One);
+  if (isPanelAlive(state.store.CodexPanel)) {
+    state.store.CodexPanel!.reveal(vscode.ViewColumn.One);
     if (sessionId) {
       const session = state.store.themeConfig.architectSessions[sessionId];
       if (session) {
