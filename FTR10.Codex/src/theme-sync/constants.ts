@@ -42,9 +42,7 @@ export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
   {
     label: 'Typography',
     keys: [
-      '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font',
-      '--ftr10-font-activitybar', '--ftr10-font-sidebar',
-      '--ftr10-font-panel-bottom', '--ftr10-font-panel-top', '--ftr10-font-auxiliarybar'
+      '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font'
     ]
   },
   {

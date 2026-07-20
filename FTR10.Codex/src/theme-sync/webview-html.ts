@@ -2673,9 +2673,7 @@ window._renderVarsPanel = renderVarsPanel;
 const FONT_OPTIONS_A = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
 const SELECT_OPTIONS_A = {
       '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
-  '--ftr10-code-font': FONT_OPTIONS_A, '--ftr10-font-activitybar': FONT_OPTIONS_A,
-  '--ftr10-font-sidebar': FONT_OPTIONS_A, '--ftr10-font-panel-bottom': FONT_OPTIONS_A,
-  '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A
+  '--ftr10-code-font': FONT_OPTIONS_A
 };
 
 // Apply the theme's font (and a few layout) vars to THIS webview's own document so
@@ -2684,9 +2682,7 @@ const SELECT_OPTIONS_A = {
 // only forwarded them via BroadcastChannel — never applied locally. Without this the
 // GUI stays in its hardcoded font regardless of the user's font choice.
 const __PANEL_FONT_KEYS = [
-  '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font',
-  '--ftr10-font-sidebar', '--ftr10-font-activitybar', '--ftr10-font-panel-bottom',
-  '--ftr10-font-panel-top', '--ftr10-font-auxiliarybar'
+  '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font'
 ];
 function applyPanelFontVars(values) {
   if (!values) return;
@@ -2957,11 +2953,9 @@ vscode.postMessage({ command: 'getConfig' });
 
 // ── quick panels (Fonts + Opacity) ───────────────────────────────────────────
 const QP_FONT_ROWS = [
-  { key: '--ftr10-font-activitybar',  label: 'Activity' },
-  { key: '--ftr10-font-sidebar',      label: 'Sidebar'  },
-  { key: '--ftr10-font-panel-bottom', label: 'Panel Bot'},
-  { key: '--ftr10-font-panel-top',    label: 'Panel Top'},
-  { key: '--ftr10-font-auxiliarybar', label: 'Aux Bar'  },
+  { key: '--ftr10-body-font',    label: 'Body'    },
+  { key: '--ftr10-heading-font', label: 'Heading' },
+  { key: '--ftr10-code-font',    label: 'Code'    },
 ];
 const QP_OPACITY_ROWS = [
   { key: '--ftr10-opacity-activitybar',  label: 'Activity' },

@@ -9,9 +9,7 @@
                 - font-panel-top
                 - font-auxiliarybar
                 - body-font (not needed)
-        -  Move heading-font and code-font to the fonts table (verify if those are even wired to anything first)
-
-- [ ] Change all color pickers to use the new one that palette roles has  
+        -  Move heading-font and code-font to the fonts table (verify if those are even wired to anything first)  
 
 - [ ] Check and see where the headers table went, I think some variables got left off, this could be because they are computed values only, should these have overrides?
 
@@ -31,6 +29,7 @@
 
 
 ## Complete
+- [x] Change all color pickers to use the new one that palette roles has
 - [x] Remove Solarized Light, Vue Green, Github Light
 - [x] Evaluate the remaining preview themes and the differences between them
 - [x] Palette generator works, theme card (sessions) live update to the colors the palette generates (good), but the colors never actually change for anything
