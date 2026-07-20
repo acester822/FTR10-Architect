@@ -113,20 +113,39 @@ __stage('shim-start');
 // The ftr10-splash overlay (in workbench.html) covers the whole boot; we fade it
 // out + remove it here once the fresh, cache-busted shim has applied.
 try { document.documentElement.classList.add('ftr10-booting'); } catch (_e) {}
-function __bootReveal() {
+// Splash timing: the workbench chrome is revealed as soon as it is ready, but the
+// branded splash overlay is held on top for at least MIN_SPLASH_MS so the intro is
+// an intentional, complete animation (>=3s) rather than a sub-second flash.
+var __ftr10SplashT0 = (window.performance && performance.now) ? performance.now() : Date.now();
+var __FTR10_MIN_SPLASH_MS = 3200;
+var __ftr10SplashDismissed = false;
+function __ftr10DismissSplash() {
+  if (__ftr10SplashDismissed) return;
+  __ftr10SplashDismissed = true;
   try {
-    document.documentElement.classList.remove('ftr10-booting');
     var splash = document.getElementById('ftr10-splash');
     if (splash) {
       splash.classList.add('ftr10-splash-hidden');
-      setTimeout(function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+      setTimeout(function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 550);
     }
+  } catch (_e) {}
+}
+function __bootReveal() {
+  try {
+    // Reveal the workbench underneath immediately (no need to keep it hidden once
+    // it is built) — the splash overlay covers it until the minimum time elapses.
+    document.documentElement.classList.remove('ftr10-booting');
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    var elapsed = now - __ftr10SplashT0;
+    if (elapsed >= __FTR10_MIN_SPLASH_MS) { __ftr10DismissSplash(); }
+    else { setTimeout(__ftr10DismissSplash, __FTR10_MIN_SPLASH_MS - elapsed); }
   } catch (_e) {}
 }
 if (document.readyState === 'complete') { __bootReveal(); }
 else { window.addEventListener('load', __bootReveal); }
 // Fallback: never leave the workbench/splash stuck if load is slow/never fires.
-setTimeout(__bootReveal, 2000);
+// Kept above the minimum splash time so a slow boot still shows the full intro.
+setTimeout(__bootReveal, 4500);
 // Log the very next paint after the shim runs (stage 1 visual).
 try { requestAnimationFrame(function() { __stage('raf-after-shim'); }); } catch (_e) {}
 // Log when the DOM is interactive/complete.
