@@ -854,6 +854,20 @@ window.__FTR10_INIT__ = ${initJson};
   }
   body.edit-layout .draggable:active { cursor: grabbing; }
   body.edit-layout .draggable.dragged { z-index: 61; }
+  /* Each table is independently RESIZABLE (native CSS resize handle, bottom-right).
+     overflow must be non-visible for resize to work; min sizes keep a table usable. */
+  .draggable {
+    resize: both;
+    overflow: auto;
+    min-width: 150px;
+    min-height: 60px;
+  }
+  /* A table that has been resized (inline width/height present) keeps its size
+     applied ALWAYS — not just during edit mode — so the resize persists on reload. */
+  .draggable.sized { width: var(--drag-w, auto); height: var(--drag-h, auto); }
+  /* The native resize gripper sits in the bottom-right corner; the drag handler
+     must ignore pointerdowns there so resizing doesn't fight dragging. */
+  body.edit-layout .draggable { outline-offset: 3px; }
 
   /* ── grab-to-pan (when not editing layout) ───────────────────── */
   :root { --pan-x: 0px; --pan-y: 0px; }
@@ -1130,7 +1144,7 @@ window.__FTR10_INIT__ = ${initJson};
     align-items: flex-start;
     flex: 0 0 auto;
   }
-  .left-legend-wrap {
+  .left-tables {
     position: absolute;
     right: calc(100% + 16px);
     top: 0;
@@ -1580,50 +1594,52 @@ window.__FTR10_INIT__ = ${initJson};
       </div>
     </div>
 
-    <!-- left-side floating tables: Palette, Status, Backgrounds, Fonts, Opacity -->
-    <div class="left-legend-wrap draggable">
-      <div class="legend-panel desktop" id="colorLegendDesktop"></div>
-      <div class="hud" style="pointer-events:none">
-        <div class="hud-title">Status</div>
-        <div class="hud-row"><span class="hud-label">Hue</span><span class="hud-value" id="hudHue">000°</span></div>
-        <div class="hud-row"><span class="hud-label">Mode</span><span class="hud-value" id="hudHarmony">Complementary</span></div>
-        <div class="hud-row"><span class="hud-label">Sync</span><span class="hud-value" id="hudSync">Active</span></div>
-      </div>
-      <div class="quick-panel">
-        <div class="hud-title">Backgrounds</div>
-        <div class="qp-row">
-          <span class="qp-label">Thpace Particles</span>
-          <label class="bg-toggle-pill">
-            <input type="checkbox" id="thpaceToggle">
-            <span class="bg-toggle-track"></span>
-          </label>
-        </div>
-        <div class="qp-row">
-          <span class="qp-label">Effect</span>
-          <div class="qp-select-wrap">
-            <select id="bgEffectSelect">
-              <option value="none">None</option>
-              <option value="kaleidoscope">Kaleidoscope</option>
-              <option value="aurora">Aurora</option>
-              <option value="nebula">Nebula</option>
-              <option value="crt">CRT</option>
-              <option value="circuit">Circuit</option>
-              <option value="meshflow">Meshflow</option>
-              <option value="playstation">Playstation</option>
-              <!-- image effect temporarily disabled while investigating layering/lag -->
-            </select>
-          </div>
-        </div>
-        <div class="qp-row">
-          <span class="qp-label">BG Effect</span>
-          <label class="bg-toggle-pill">
-            <input type="checkbox" id="bgEffectToggle">
-            <span class="bg-toggle-track"></span>
-          </label>
-        </div>
-      </div>
-      <!-- Fonts and Opacity moved to right side -->
+    <!-- left-side floating tables — each is its OWN draggable + resizable element -->
+    <div class="left-tables">
+    <!-- 1) Palette table -->
+    <div class="legend-panel desktop draggable" id="colorLegendDesktop"></div>
+    <!-- 2) Status table -->
+    <div class="hud draggable" id="statusHud" style="pointer-events:none">
+      <div class="hud-title">Status</div>
+      <div class="hud-row"><span class="hud-label">Hue</span><span class="hud-value" id="hudHue">000°</span></div>
+      <div class="hud-row"><span class="hud-label">Mode</span><span class="hud-value" id="hudHarmony">Complementary</span></div>
+      <div class="hud-row"><span class="hud-label">Sync</span><span class="hud-value" id="hudSync">Active</span></div>
     </div>
+    <!-- 3) Backgrounds table (single combined panel — the _below duplicate was removed) -->
+    <div class="quick-panel draggable" id="bgPanel">
+      <div class="hud-title">Backgrounds</div>
+      <div class="qp-row">
+        <span class="qp-label">Thpace Particles</span>
+        <label class="bg-toggle-pill">
+          <input type="checkbox" id="thpaceToggle">
+          <span class="bg-toggle-track"></span>
+        </label>
+      </div>
+      <div class="qp-row">
+        <span class="qp-label">Effect</span>
+        <div class="qp-select-wrap">
+          <select id="bgEffectSelect">
+            <option value="none">None</option>
+            <option value="kaleidoscope">Kaleidoscope</option>
+            <option value="aurora">Aurora</option>
+            <option value="nebula">Nebula</option>
+            <option value="crt">CRT</option>
+            <option value="circuit">Circuit</option>
+            <option value="meshflow">Meshflow</option>
+            <option value="playstation">Playstation</option>
+            <!-- image effect temporarily disabled while investigating layering/lag -->
+          </select>
+        </div>
+      </div>
+      <div class="qp-row">
+        <span class="qp-label">BG Effect</span>
+        <label class="bg-toggle-pill">
+          <input type="checkbox" id="bgEffectToggle">
+          <span class="bg-toggle-track"></span>
+        </label>
+      </div>
+    </div>
+    </div><!-- /left-tables -->
     </div><!-- /left-cluster -->
 
     <!-- center wheel + controls -->
@@ -1697,33 +1713,6 @@ window.__FTR10_INIT__ = ${initJson};
     </div>
   </div>
   <div class="tables-below" style="display:none">
-    <div class="quick-panel draggable" id="bgPanel_below">
-      <div class="hud-title">Backgrounds</div>
-      <div class="qp-row">
-        <span class="qp-label">Thpace Particles</span>
-        <label class="bg-toggle-pill"><input type="checkbox" id="thpaceToggle_below"><span class="bg-toggle-track"></span></label>
-      </div>
-      <div class="qp-row">
-        <span class="qp-label">Effect</span>
-        <div class="qp-select-wrap">
-          <select id="bgEffectSelect_below">
-            <option value="none">None</option>
-            <option value="kaleidoscope">Kaleidoscope</option>
-            <option value="aurora">Aurora</option>
-            <option value="nebula">Nebula</option>
-            <option value="crt">CRT</option>
-            <option value="circuit">Circuit</option>
-            <option value="meshflow">Meshflow</option>
-            <option value="playstation">Playstation</option>
-            <!-- image effect temporarily disabled while investigating layering/lag -->
-          </select>
-        </div>
-      </div>
-      <div class="qp-row">
-        <span class="qp-label">BG Effect</span>
-        <label class="bg-toggle-pill"><input type="checkbox" id="bgEffectToggle_below"><span class="bg-toggle-track"></span></label>
-      </div>
-    </div>
     <div class="quick-panel draggable" id="fontsPanel_below">
       <div class="hud-title">Fonts</div>
       <div style="font-size:0.56rem;padding:4px 2px;color:rgba(180,200,255,0.45)">Load config to edit.</div>
@@ -1780,24 +1769,34 @@ __wvTrace('architect-script-init', {});
 // ── Edit-Layout mode: drag movable panels (varTables + legend wraps) ──
 // Stone set (ep-wrap / center-col / clusters) is NEVER draggable.
 (function initLayoutDrag() {
-  const MOVABLE = ['varTables', 'left-legend-wrap', 'fontsPanel', 'opacityPanel', 'fontsPanel_below', 'opacityPanel_below', 'bgPanel_below', 'colorLegendDesktop'];
+  // Each table in the GUI is its own independently movable + resizable element.
+  // Colorwheel (center-col / wheel-wrap) and swatch panels (ep-wrap / *Panel)
+  // are intentionally NOT in this list, so they stay locked in place.
+  const MOVABLE = ['colorLegendDesktop', 'statusHud', 'bgPanel', 'fontsPanel', 'opacityPanel', 'varTables'];
   const stage = document.querySelector('.stage') || document.body;
   function elFor(id) {
-    if (id === 'varTables') return document.getElementById('varTables');
-    if (id.includes('Panel') || id.includes('Legend') || id.includes('Below')) {
-      return document.getElementById(id) || document.querySelector('.' + id);
-    }
-    return document.getElementById(id) || document.querySelector('.' + id);
+    return document.getElementById(id);
   }
   function getParentRect(el) {
     const p = el.offsetParent || stage;
     return { parent: p, rect: p.getBoundingClientRect() };
   }
-  function commit(id, x, y) {
+  function commit(id, rect) {
     const ov = Object.assign({}, window.__layoutOverrides || {});
-    ov[id] = { x: Math.round(x), y: Math.round(y) };
+    ov[id] = {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.round(rect.w),
+      h: Math.round(rect.h)
+    };
     window.__layoutOverrides = ov;
     try { vscode.postMessage({ command: 'saveLayout', overrides: ov }); } catch(_e) {}
+  }
+  // Read an element's current saved-able geometry (position relative to parent + size).
+  function geomOf(el) {
+    const r = el.getBoundingClientRect();
+    const pr = (el.offsetParent || stage).getBoundingClientRect();
+    return { x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height };
   }
   function commitRemoval(id) {
     const ov = Object.assign({}, window.__layoutOverrides || {});
@@ -1813,12 +1812,24 @@ __wvTrace('architect-script-init', {});
       el.style.setProperty('--drag-x', ov[id].x + 'px');
       el.style.setProperty('--drag-y', ov[id].y + 'px');
       el.classList.add('dragged');
+      // Restore a previously-resized table to its saved size.
+      if (ov[id].w && ov[id].h) {
+        el.style.setProperty('--drag-w', ov[id].w + 'px');
+        el.style.setProperty('--drag-h', ov[id].h + 'px');
+        el.classList.add('sized');
+      }
     });
   }
   window.__applyLayoutOverrides = applyOverrides;
   // Also expose a way to clear a single override (reset position)
   window.__clearLayoutOverride = function(id) {
-    const el = elFor(id); if (el) { el.classList.remove('dragged'); el.style.removeProperty('--drag-x'); el.style.removeProperty('--drag-y'); }
+    const el = elFor(id); if (el) {
+      el.classList.remove('dragged', 'sized');
+      el.style.removeProperty('--drag-x');
+      el.style.removeProperty('--drag-y');
+      el.style.removeProperty('--drag-w');
+      el.style.removeProperty('--drag-h');
+    }
     commitRemoval(id);
   };
   const btn = document.getElementById('editLayoutBtn');
@@ -1853,9 +1864,9 @@ __wvTrace('architect-script-init', {});
       const el = elFor(id); if (!el) return;
       if (el.classList.contains('dragged')) {
         // Has saved position — persist whatever current --drag-x/y is (seeded or moved)
-        const x = parseFloat(el.style.getPropertyValue('--drag-x')) || 0;
-        const y = parseFloat(el.style.getPropertyValue('--drag-y')) || 0;
-        commit(id, x, y);
+        // plus any size the user resized it to.
+        const g = geomOf(el);
+        commit(id, g);
       } else {
         // Never dragged — clear seeded inline pos so it reverts to default layout
         el.style.removeProperty('--drag-x');
@@ -1869,10 +1880,11 @@ __wvTrace('architect-script-init', {});
   document.addEventListener('pointerdown', (e) => {
     if (!document.body.classList.contains('edit-layout')) return;
     const el = (e.target).closest('.draggable'); if (!el) return;
-    const id = el.id || (el.classList.contains('left-legend-wrap') ? 'left-legend-wrap'
-      : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
-    if (!id) return;
+    const id = el.id; if (!id) return;
+    // Ignore the bottom-right resize gripper so native CSS resize isn't hijacked by drag.
     const r = el.getBoundingClientRect();
+    const GRIP = 16;
+    if (e.clientX >= r.right - GRIP && e.clientY >= r.bottom - GRIP) return;
     const { parent, rect: pr } = getParentRect(el);
     dragging = { el, id, parent, offX: e.clientX - r.left, offY: e.clientY - r.top, moved: false, startX: e.clientX, startY: e.clientY };
     try { el.setPointerCapture(e.pointerId); } catch(_){}
@@ -1897,23 +1909,30 @@ __wvTrace('architect-script-init', {});
     if (!dragging) return;
     const d = dragging; dragging = null;
     try { d.el.releasePointerCapture(e.pointerId); } catch (_) {}
-    if (d.moved) {
-      commit(d.id,
-        parseFloat(d.el.style.getPropertyValue('--drag-x')) || 0,
-        parseFloat(d.el.style.getPropertyValue('--drag-y')) || 0);
+    // Commit if the user dragged it, or resized it (size differs from saved/default).
+    const resized = d.el.classList.contains('sized') ||
+      (d.el.style.getPropertyValue('--drag-w') && d.el.style.getPropertyValue('--drag-h'));
+    if (d.moved || resized) {
+      const g = geomOf(d.el);
+      if (g.w && g.h) {
+        d.el.classList.add('sized');
+        d.el.style.setProperty('--drag-w', g.w + 'px');
+        d.el.style.setProperty('--drag-h', g.h + 'px');
+      }
+      commit(d.id, g);
     }
   });
-  // Double-click a dragged panel in edit mode to reset it to default position
+  // Double-click a dragged panel in edit mode to reset it to default position + size
   document.addEventListener('dblclick', (e) => {
     if (!document.body.classList.contains('edit-layout')) return;
     const el = (e.target).closest('.draggable.dragged'); if (!el) return;
-    const id = el.id || (el.classList.contains('left-legend-wrap') ? 'left-legend-wrap'
-      : el.classList.contains('right-legend-wrap') ? 'right-legend-wrap' : null);
-    if (!id) return;
+    const id = el.id; if (!id) return;
     e.preventDefault();
-    el.classList.remove('dragged');
+    el.classList.remove('dragged', 'sized');
     el.style.removeProperty('--drag-x');
     el.style.removeProperty('--drag-y');
+    el.style.removeProperty('--drag-w');
+    el.style.removeProperty('--drag-h');
     commitRemoval(id);
     // Re-seed for visual stability if staying in edit mode: compute default layout position after removal
     requestAnimationFrame(() => {
