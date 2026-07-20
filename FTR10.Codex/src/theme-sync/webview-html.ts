@@ -2751,8 +2751,13 @@ function renderVarsPanel() {
     const isBackgrounds = (group.name || label).toLowerCase().trim() === 'backgrounds';
     if (isBackgrounds && bgVarsHost) {
       // Merge into the Backgrounds quick-panel rather than a separate table.
+      // Skip vars already represented by the panel's dedicated controls
+      // (--ftr10-bg-effect -> #bgEffectSelect + toggle) to avoid a duplicate
+      // dropdown appearing in the merged Variables block.
+      const BG_PANEL_CONTROLLED = ['--ftr10-bg-effect'];
       let bhtml = '<div class="bg-vars-title">Variables</div>';
-      keys.forEach(k => { bhtml += buildVarsFieldRow(k, varsState.values[k] !== undefined ? varsState.values[k] : ''); });
+      keys.filter(k => BG_PANEL_CONTROLLED.indexOf(k) === -1)
+          .forEach(k => { bhtml += buildVarsFieldRow(k, varsState.values[k] !== undefined ? varsState.values[k] : ''); });
       bgVarsHost.insertAdjacentHTML('beforeend', bhtml);
       return;
     }
