@@ -866,13 +866,17 @@ window.__FTR10_INIT__ = ${initJson};
   body.edit-layout .draggable:active { cursor: grabbing; }
   body.edit-layout .draggable.dragged { z-index: 61; }
   /* Each table is independently RESIZABLE (native CSS resize handle, bottom-right).
-     overflow must be non-visible for resize to work; min sizes keep a table usable. */
+     The gripper is only shown in Edit-Layout mode so it doesn't linger as a
+     visual marker on every table during normal use. overflow must be non-visible
+     for resize to work; min sizes keep a table usable. */
   .draggable {
-    resize: both;
+    resize: none;
     overflow: auto;
     min-width: 150px;
     min-height: 60px;
   }
+  /* Show the resize gripper only while editing layout. */
+  body.edit-layout .draggable { resize: both; }
   /* A table that has been resized (inline width/height present) keeps its size
      applied ALWAYS — not just during edit mode — so the resize persists on reload. */
   .draggable.sized { width: var(--drag-w, auto); height: var(--drag-h, auto); }
