@@ -804,37 +804,48 @@ window.__FTR10_INIT__ = ${initJson};
     margin-top: 2px;
     padding: 6px 10px 14px;
     border-top: 1px solid rgba(var(--ui-border-rgb), 0.25);
-    max-height: 46vh;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 280px;
   }
-  .var-tables .v-group { margin-bottom: 6px; }
-  .var-tables .v-group-header {
-    cursor: pointer;
-    user-select: none;
-    background: rgba(var(--ui-accent-rgb), 0.10);
-    border: 1px solid rgba(var(--ui-accent-rgb), 0.18);
-    border-radius: 6px;
+  /* Each vars section renders as its own draggable + resizable table */
+  .v-table {
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.16);
+    background: rgba(0,4,14,0.4);
+    border-radius: 8px;
+    overflow: auto;
+    min-height: 40px;
+  }
+  .v-table-header {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 6px 10px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.74rem;
+    font-size: 0.7rem;
     letter-spacing: 1px;
     text-transform: uppercase;
     color: rgba(var(--ui-accent-rgb), 0.95);
+    background: rgba(var(--ui-accent-rgb), 0.12);
+    border-bottom: 1px solid rgba(var(--ui-accent-rgb), 0.18);
+    cursor: inherit;
+    user-select: none;
   }
-  .var-tables .v-group-header:hover { background: rgba(var(--ui-accent-rgb), 0.18); }
-  .var-tables .v-count {
+  .v-table-header:hover { background: rgba(var(--ui-accent-rgb), 0.18); }
+  .v-count {
     margin-left: auto;
     opacity: 0.6;
     font-size: 0.66rem;
   }
-  .var-tables .v-group[open] > .v-group-header { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .var-tables .v-group-fields { padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
 
   /* ── Edit-Layout mode: movable panels (varTables + legend wraps) ──
      The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
   /* Default draggable sizing */
   .draggable { position: relative; }
-  #varTables.draggable { position: relative; width: 100%; max-width: 280px; }
-  .var-tables { width: 100%; max-width: 280px; }
   /* A .dragged element has a SAVED position (from layoutOverrides) and keeps it
      applied ALWAYS — not just during edit mode — so the move persists on reload. */
   .draggable.dragged {
@@ -1599,7 +1610,7 @@ window.__FTR10_INIT__ = ${initJson};
     <!-- 1) Palette table -->
     <div class="legend-panel desktop draggable" id="colorLegendDesktop"></div>
     <!-- 2) Status table -->
-    <div class="hud draggable" id="statusHud" style="pointer-events:none">
+    <div class="hud draggable" id="statusHud">
       <div class="hud-title">Status</div>
       <div class="hud-row"><span class="hud-label">Hue</span><span class="hud-value" id="hudHue">000°</span></div>
       <div class="hud-row"><span class="hud-label">Mode</span><span class="hud-value" id="hudHarmony">Complementary</span></div>
@@ -1670,10 +1681,9 @@ window.__FTR10_INIT__ = ${initJson};
         <button class="btn-apply" id="applyBtn">⬡ Apply</button>
       </div>
 
-      <!-- Per-section variable tables (replaces the removed Advanced Editor).
-           Each section from varsState.sections renders as a collapsible table;
-           edits write to the single varsState.values via liveUpdate. -->
-      <div id="varTables" class="var-tables draggable"></div>
+      <!-- Per-section variable tables: each section from varsState.sections renders
+           as its OWN draggable + resizable table (built in renderVarsPanel). -->
+      <div id="varTables" class="var-tables"></div>
 
       <div class="legend-panel mobile" id="colorLegendMobile"></div>
     </div>
@@ -1772,7 +1782,9 @@ __wvTrace('architect-script-init', {});
   // Each table in the GUI is its own independently movable + resizable element.
   // Colorwheel (center-col / wheel-wrap) and swatch panels (ep-wrap / *Panel)
   // are intentionally NOT in this list, so they stay locked in place.
-  const MOVABLE = ['colorLegendDesktop', 'statusHud', 'bgPanel', 'fontsPanel', 'opacityPanel', 'varTables'];
+  // varTables is a dynamic container — its per-section tables are registered
+  // here as they are rendered (see renderVarsPanel -> MOVABLE.add).
+  const MOVABLE = new Set(['colorLegendDesktop', 'statusHud', 'bgPanel', 'fontsPanel', 'opacityPanel']);
   const stage = document.querySelector('.stage') || document.body;
   function elFor(id) {
     return document.getElementById(id);
@@ -1821,6 +1833,8 @@ __wvTrace('architect-script-init', {});
     });
   }
   window.__applyLayoutOverrides = applyOverrides;
+  // Allow dynamic tables (e.g. per-section var tables) to join the movable set.
+  window.__registerMovableTable = function(id) { if (id) MOVABLE.add(id); };
   // Also expose a way to clear a single override (reset position)
   window.__clearLayoutOverride = function(id) {
     const el = elFor(id); if (el) {
@@ -2617,20 +2631,29 @@ function buildVarsFieldRow(key, value) {
 function renderVarsPanel() {
   const content = document.getElementById('varTables');
   if (!content) return;
-  let html = '';
   const groups = varsState.advanced ? varsState.sections : varsState.simpleGroups;
+  // Build one independent, draggable + resizable table per section.
+  let html = '';
   groups.forEach(group => {
     const label = group.label || group.name || '';
     const keys = (group.keys || []);
     if (keys.length === 0) return;
-    html += '<details class="v-group" open>';
-    html += '<summary class="v-group-header">' + escapeHtmlA(label) + '<span class="v-count">' + keys.length + '</span></summary>';
+    const slug = escapeHtmlA(String(group.name || label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+    const tid = 'vt_' + slug;
+    html += '<div class="v-table draggable" id="' + tid + '">';
+    html += '<div class="v-table-header">' + escapeHtmlA(label) + '<span class="v-count">' + keys.length + '</span></div>';
     html += '<div class="v-group-fields">';
     keys.forEach(k => { html += buildVarsFieldRow(k, varsState.values[k] !== undefined ? varsState.values[k] : ''); });
-    html += '</div></details>';
+    html += '</div></div>';
   });
   if (!html) html = '<div class="v-empty">No variables loaded yet. Variables appear once a session is applied.</div>';
   content.innerHTML = html;
+  // Register every per-section table as movable, then re-apply any saved layout.
+  groups.forEach(group => {
+    const slug = escapeHtmlA(String(group.name || (group.label||'')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+    if ((group.keys || []).length) window.__registerMovableTable && window.__registerMovableTable('vt_' + slug);
+  });
+  if (window.__applyLayoutOverrides) window.__applyLayoutOverrides(window.__layoutOverrides);
   wireVarsInputs(content);
   // Sync bg toggles to current state
   syncBgToggleState(varsState.values);
