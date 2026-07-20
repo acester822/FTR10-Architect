@@ -1578,7 +1578,55 @@ window.__FTR10_INIT__ = ${initJson};
     padding: 1px 5px;
   }
   .v-group-fields { padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
-  .v-field-row {
+  /* color rows mirror the Palette Roles legend-row exactly */
+  .v-field-row.v-field-color {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    padding: 5px 6px;
+    margin-bottom: 5px;
+    cursor: pointer;
+  }
+  .v-color-dot {
+    width: 12px; height: 12px;
+    padding: 0;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.28);
+    box-shadow: 0 0 8px var(--lg, rgba(0,212,255,0.4));
+    cursor: pointer;
+  }
+  .v-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .v-name {
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    color: rgba(220,235,255,0.95);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .v-color-name {
+    font-size: 0.6rem;
+    letter-spacing: 0.7px;
+    color: rgba(185,210,240,0.82);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .v-hex {
+    font-size: 0.64rem;
+    letter-spacing: 0.8px;
+    color: rgba(255,255,255,0.92);
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .v-hex:hover { color: #fff; text-decoration: underline; }
+  /* dropdown rows stay compact */
+  .v-field-row.v-field-select {
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-items: center;
@@ -1586,7 +1634,7 @@ window.__FTR10_INIT__ = ${initJson};
     padding: 4px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
-  .v-field-row:last-child { border-bottom: none; }
+  .v-field-row.v-field-select:last-child { border-bottom: none; }
   .v-field-label {
     font-size: 0.65rem;
     letter-spacing: 0.8px;
@@ -1594,47 +1642,6 @@ window.__FTR10_INIT__ = ${initJson};
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-family: 'Share Tech Mono', monospace;
-  }
-  .v-field-input-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .v-field-input-wrap .v-color-btn {
-    width: 28px; height: 24px;
-    padding: 0;
-    border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.15);
-    background: var(--sw, #888);
-    cursor: pointer;
-    flex-shrink: 0;
-    box-shadow: 0 0 6px color-mix(in srgb, var(--sw, #888) 40%, transparent);
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
-  }
-  .v-field-input-wrap .v-color-btn:hover {
-    transform: scale(1.08);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--sw, #888) 65%, transparent);
-  }
-  .v-field-input-wrap input[type="text"] {
-    flex: 1;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.8px;
-    padding: 3px 7px;
-    border-radius: 4px;
-    border: 1px solid rgba(var(--ui-accent-rgb),0.18);
-    background: rgba(0,6,18,0.7);
-    color: rgba(200,220,255,0.9);
-    outline: none;
-    min-width: 0;
-  }
-  .v-field-input-wrap input[type="text"]:focus { border-color: rgba(var(--ui-accent-rgb),0.5); }
-  .v-alpha-label {
-    font-size: 0.58rem;
-    color: rgba(var(--ui-accent-rgb),0.5);
-    white-space: nowrap;
     font-family: 'Share Tech Mono', monospace;
   }
   .v-select-wrap select {
@@ -2697,21 +2704,25 @@ function hexAlphaA(v) { const h=(v||'').trim(); return h.length===9?Math.round(p
 
 function buildVarsFieldRow(key, value) {
   const opts = SELECT_OPTIONS_A[key];
-  let html = '<div class="v-field-row">';
-  html += '<div class="v-field-label" title="' + escapeHtmlA(key) + '">' + escapeHtmlA(key.replace('--ftr10-','')) + '</div>';
-  html += '<div class="v-field-input-wrap">';
+  const label = key.replace('--ftr10-', '');
   if (opts) {
+    // dropdown field — keep a compact inline control
+    let html = '<div class="v-field-row v-field-select">';
+    html += '<div class="v-field-label" title="' + escapeHtmlA(key) + '">' + escapeHtmlA(label) + '</div>';
     html += '<div class="v-select-wrap"><select data-vkey="' + escapeHtmlA(key) + '">';
     opts.forEach(o => { html += '<option value="' + escapeHtmlA(o) + '"' + (o === value ? ' selected' : '') + '>' + escapeHtmlA(o) + '</option>'; });
     html += '</select></div>';
-  } else {
-    const sp = isHexA(value);
-    if (sp) {
-      html += '<button type="button" class="v-color-btn" data-vkey="' + escapeHtmlA(key) + '" data-vrole="colorbtn" style="--sw:' + escapeHtmlA(toPickerHexA(value)) + '"></button>';
-    }
-    html += '<input type="text" data-vkey="' + escapeHtmlA(key) + '" data-vrole="text" value="' + escapeHtmlA(value||'') + '" placeholder="CSS value"/>';
+    html += '</div>';
+    return html;
   }
-  html += '</div></div>';
+  // color field — match the Palette Roles legend row exactly
+  const hex = isHexA(value) ? value : '#888888';
+  const name = getColorNameFromHex(hex);
+  let html = '<div class="v-field-row v-field-color">';
+  html += '<button type="button" class="v-color-dot" data-vkey="' + escapeHtmlA(key) + '" data-vrole="colorbtn" title="Set ' + escapeHtmlA(label) + '" style="background:' + escapeHtmlA(hex) + ';--lg:' + escapeHtmlA(hex) + ';"></button>';
+  html += '<span class="v-meta"><span class="v-name">' + escapeHtmlA(label) + '</span><span class="v-color-name">' + escapeHtmlA(name) + '</span></span>';
+  html += '<span class="v-hex" data-hex="' + escapeHtmlA(hex) + '">' + escapeHtmlA(hex.toUpperCase()) + '</span>';
+  html += '</div>';
   return html;
 }
 
@@ -2789,18 +2800,21 @@ function wireVarsInputs(content) {
         isVar: true,
         onConfirm: (k, hex) => {
           varsState.values[k] = hex;
-          const textEl = content.querySelector('input[data-vrole="text"][data-vkey="' + CSS.escape(k) + '"]');
-          if (textEl && textEl !== document.activeElement) textEl.value = hex;
+          const row = btn.closest('.v-field-row');
+          if (row) {
+            const dot = row.querySelector('.v-color-dot');
+            if (dot) { dot.style.background = hex; dot.style.setProperty('--lg', hex); }
+            const hx = row.querySelector('.v-hex');
+            if (hx) { hx.textContent = hex.toUpperCase(); hx.setAttribute('data-hex', hex); }
+          }
           scheduleVarsLiveUpdate();
         }
       });
     });
   });
-  content.querySelectorAll('input[data-vrole="text"]').forEach(txt => {
-    txt.addEventListener('change', () => {
-      varsState.values[txt.dataset.vkey] = txt.value;
-      scheduleVarsLiveUpdate();
-    });
+  // Hex readout click copies (mirrors Palette Roles legend-hex).
+  content.querySelectorAll('.v-hex').forEach(hx => {
+    hx.addEventListener('click', () => { copyHex(hx.getAttribute('data-hex')); });
   });
   content.querySelectorAll('select[data-vkey]').forEach(sel => {
     sel.addEventListener('change', () => {
