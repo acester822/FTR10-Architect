@@ -3005,6 +3005,7 @@ function renderQuickPanels() {
   const vals = varsState.values;
 
   if (fp) {
+    const TEXT_COLOR_ROWS = ['--ftr10-text', '--ftr10-text-muted'];
     fp.innerHTML = '<div class="hud-title">Fonts</div>' +
       QP_FONT_ROWS.map(r => {
         const cur = _qpFontValToName(vals[r.key] || '');
@@ -3012,7 +3013,10 @@ function renderQuickPanels() {
           '<option value="' + n + '"' + (cur === n ? ' selected' : '') + '>' + n + '</option>'
         ).join('');
         return '<div class="qp-row"><span class="qp-label">' + r.label + '</span><select class="qp-select" data-qpkey="' + r.key + '">' + opts + '</select></div>';
-      }).join('');
+      }).join('') +
+      '<div class="bg-vars-block"><div class="bg-vars-title">Text</div>' +
+      TEXT_COLOR_ROWS.map(k => buildVarsFieldRow(k, vals[k] !== undefined ? vals[k] : '')).join('') +
+      '</div>';
     fp.querySelectorAll('.qp-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const n = sel.value;
@@ -3020,6 +3024,8 @@ function renderQuickPanels() {
         scheduleVarsLiveUpdate();
       });
     });
+    // Wire the merged text color rows (swatch pickers + hex copy).
+    try { wireVarsInputs(fp); } catch (e) { console.error('wireVarsInputs(fontsPanel) failed:', e); }
   }
 
   if (op) {

@@ -15,10 +15,6 @@ export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
     ]
   },
   {
-    label: 'Text',
-    keys: ['--ftr10-text', '--ftr10-text-muted']
-  },
-  {
     label: 'UI',
     keys: [
       '--ftr10-cursor', '--ftr10-tab-border-color',
