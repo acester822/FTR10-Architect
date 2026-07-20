@@ -1617,13 +1617,6 @@ window.__FTR10_INIT__ = ${initJson};
     transform: scale(1.08);
     box-shadow: 0 0 12px color-mix(in srgb, var(--sw, #888) 65%, transparent);
   }
-  /* checkerboard behind translucent swatches */
-  .v-field-input-wrap .v-color-btn {
-    background-image:
-      repeating-conic-gradient(#444 0% 25%, #2a2a2a 0% 50%);
-    background-size: 10px 10px;
-    background-color: var(--sw, #888);
-  }
   .v-field-input-wrap input[type="text"] {
     flex: 1;
     font-family: 'Share Tech Mono', monospace;
@@ -1638,17 +1631,6 @@ window.__FTR10_INIT__ = ${initJson};
     min-width: 0;
   }
   .v-field-input-wrap input[type="text"]:focus { border-color: rgba(var(--ui-accent-rgb),0.5); }
-  .v-alpha-wrap {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  .v-alpha-wrap input[type="range"] {
-    width: 52px;
-    accent-color: var(--sw, var(--ui-accent));
-    height: 4px;
-  }
   .v-alpha-label {
     font-size: 0.58rem;
     color: rgba(var(--ui-accent-rgb),0.5);
@@ -2676,6 +2658,10 @@ document.getElementById('saveBtn').addEventListener('click', (e) => {
 
 // ── vars panel state ──────────────────────────────────────────────────────────
 const varsState = { simpleGroups: [], values: {}, sections: [], advanced: false };
+// Exposed for the color-picker <script> block (separate scope).
+window._varsState = varsState;
+window._scheduleVarsLiveUpdate = scheduleVarsLiveUpdate;
+window._renderVarsPanel = renderVarsPanel;
 
 const FONT_OPTIONS_A = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
 const SELECT_OPTIONS_A = {
@@ -2720,13 +2706,8 @@ function buildVarsFieldRow(key, value) {
     html += '</select></div>';
   } else {
     const sp = isHexA(value);
-    const alpha = sp ? hexAlphaA(value) : 100;
     if (sp) {
       html += '<button type="button" class="v-color-btn" data-vkey="' + escapeHtmlA(key) + '" data-vrole="colorbtn" style="--sw:' + escapeHtmlA(toPickerHexA(value)) + '"></button>';
-      html += '<div class="v-alpha-wrap" style="--sw:' + escapeHtmlA(toPickerHexA(value)) + '">';
-      html += '<input type="range" min="0" max="100" value="' + alpha + '" data-vkey="' + escapeHtmlA(key) + '" data-vrole="alpha"/>';
-      html += '<span class="v-alpha-label" data-vkey="' + escapeHtmlA(key) + '" data-vrole="alpha-label">' + alpha + '%</span>';
-      html += '</div>';
     }
     html += '<input type="text" data-vkey="' + escapeHtmlA(key) + '" data-vrole="text" value="' + escapeHtmlA(value||'') + '" placeholder="CSS value"/>';
   }
@@ -2813,22 +2794,6 @@ function wireVarsInputs(content) {
           scheduleVarsLiveUpdate();
         }
       });
-    });
-  });
-  content.querySelectorAll('input[data-vrole="alpha"]').forEach(slider => {
-    slider.addEventListener('input', () => {
-      const key = slider.dataset.vkey;
-      const pickerEl = content.querySelector('input[data-vrole="picker"][data-vkey="' + CSS.escape(key) + '"]');
-      const labelEl = content.querySelector('[data-vrole="alpha-label"][data-vkey="' + CSS.escape(key) + '"]');
-      const textEl = content.querySelector('input[data-vrole="text"][data-vkey="' + CSS.escape(key) + '"]');
-      if (labelEl) labelEl.textContent = slider.value + '%';
-      if (pickerEl) {
-        const alphaHex = Math.round(parseInt(slider.value)/100*255).toString(16).padStart(2,'0');
-        const newVal = parseInt(slider.value) === 100 ? pickerEl.value : pickerEl.value + alphaHex;
-        varsState.values[key] = newVal;
-        if (textEl && textEl !== document.activeElement) textEl.value = newVal;
-        scheduleVarsLiveUpdate();
-      }
     });
   });
   content.querySelectorAll('input[data-vrole="text"]').forEach(txt => {
@@ -3531,7 +3496,7 @@ function openOverrideModal(arg, opts) {
   overrideVarKey = isVar ? arg : null;
   overrideOnConfirm = isVar ? opts.onConfirm : null;
   overrideOriginal = isVar
-    ? (varsState.values[arg] || '#888888')
+    ? (window._varsState.values[arg] || '#888888')
     : (window._codexPalette || [])[arg] || '#888888';
   // Parse any existing alpha (8-char hex) so re-opening keeps the setting.
   pickAlpha = overrideOriginal.length >= 9 ? Math.round(parseInt(overrideOriginal.slice(7,9), 16) / 255 * 100) : 100;
@@ -3554,7 +3519,7 @@ function closeOverrideModal(confirm) {
   if (!confirm) {
     if (overrideMode === 'var') {
       // Restore preview by re-rendering the var tables (cheap, no liveUpdate).
-      if (window.renderVarsPanel) renderVarsPanel();
+      if (window._renderVarsPanel) window._renderVarsPanel();
     } else {
       [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
         const el = document.getElementById(id);
@@ -3607,7 +3572,7 @@ document.getElementById('overrideBtnConfirm').addEventListener('click', () => {
   }
   if (overrideMode === 'var') {
     if (overrideOnConfirm) overrideOnConfirm(overrideVarKey, hex);
-    if (typeof renderVarsPanel === 'function') renderVarsPanel();
+    if (window._renderVarsPanel) window._renderVarsPanel();
   } else {
     if (window._codexSetOverride) window._codexSetOverride(overrideIdx, hex);
     [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
