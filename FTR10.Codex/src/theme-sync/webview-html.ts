@@ -3479,7 +3479,7 @@ function drawPicker() {
   const rgba = 'rgba(' + parseInt(hex.slice(1,3),16) + ',' + parseInt(hex.slice(3,5),16) + ',' + parseInt(hex.slice(5,7),16) + ',' + a.toFixed(3) + ')';
   document.getElementById('overridePreviewSwatch').style.background = rgba;
   document.getElementById('overridePreviewHex').textContent = (a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, '0')).toUpperCase();
-  [\`lp\\${overrideIdx}\`, \`rp\\${overrideIdx}\`].forEach(id => {
+  [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.background = rgba; el.style.setProperty('--glow', hex + '88'); }
   });
@@ -3551,7 +3551,7 @@ document.getElementById('overrideBtnConfirm').addEventListener('click', () => {
     hex = hex + aa;
   }
   if (window._codexSetOverride) window._codexSetOverride(overrideIdx, hex);
-  [\`lp\\${overrideIdx}\`, \`rp\\${overrideIdx}\`].forEach(id => {
+  [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('has-override');
   });
