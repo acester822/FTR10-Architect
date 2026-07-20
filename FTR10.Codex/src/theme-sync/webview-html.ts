@@ -532,14 +532,14 @@ window.__FTR10_INIT__ = ${initJson};
     position: relative;
     flex: 0 0 auto;
     padding: 14px 12px;
-    margin-top: -4px;
-    border-radius: 18px;
+    margin-top: 16px;
+    border-radius: 22px;
     background: rgba(0,8,20,0.55);
     backdrop-filter: blur(4px);
     box-shadow: inset 0 0 14px rgba(var(--ui-accent-rgb),0.04);
   }
-  .ep-wrap.left  { transform: perspective(420px) rotateY(12deg) rotateZ(-1deg) translateX(12px); }
-  .ep-wrap.right { transform: perspective(420px) rotateY(-12deg) rotateZ(1deg) translateX(-12px); }
+  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(12px); }
+  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-12px); }
 
   .ep-canvas {
     position: absolute;
