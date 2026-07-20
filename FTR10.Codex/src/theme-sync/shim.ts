@@ -299,10 +299,16 @@ var applyVars = function(vars) {
     __next[kk] = resolved[kk];
   }
   window.__ftr10LastApplied = resolved;
+  __applyEffect(resolved);
+  // Reconcile Thpace against the live --ftr10-thpace-enabled var on EVERY apply
+  // (both the changed and the skipped/idle-poll paths). Retries until the Thpace
+  // lib is ready, so a cold reload (where the lib finishes loading after the
+  // first applyVars) still respects the saved toggle instead of falling back to
+  // the lib's localStorage default.
+  __reconcileThpace(resolved);
   if (!__changed) {
-    __applyEffect(resolved);
     var __t1 = (window.performance && performance.now) ? performance.now() : Date.now();
-    __trace('applyVars', { keys: 0, effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(), thpace: thpaceOn, ms: Math.round((__t1 - __t0) * 100) / 100, skipped: true });
+    __trace('applyVars', { keys: 0, effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(), thpace: (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false', ms: Math.round((__t1 - __t0) * 100) / 100, skipped: true });
     return;
   }
   // Write the FULL resolved set — el.textContent REPLACES the entire :root block,
@@ -311,24 +317,33 @@ var applyVars = function(vars) {
   // any unrelated edit. The cost of a full :root rewrite is acceptable now that we
   // skip the entire apply when nothing changed (the common idle-poll case).
   el.textContent = ':root {' + Object.keys(resolved).map(function(k) { return ' ' + k + ': ' + resolved[k] + ' !important;'; }).join(' ') + ' }';
-  __applyEffect(resolved);
-  // Immediately enable/disable Thpace canvas based on the var (if API is ready)
-  var thpaceOn = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
-  if (window.ftr10Thpace) {
-    if (window.__ftr10ThpaceLast !== thpaceOn) {
-      __trace('thpace-toggle', { enabled: thpaceOn });
-      window.__ftr10ThpaceLast = thpaceOn;
-    }
-    thpaceOn ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
-  }
   var __t1 = (window.performance && performance.now) ? performance.now() : Date.now();
   __trace('applyVars', {
     keys: Object.keys(vars).length,
     effect: (resolved['--ftr10-bg-effect'] || 'none').trim().toLowerCase(),
-    thpace: thpaceOn,
+    thpace: (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false',
     ms: Math.round((__t1 - __t0) * 100) / 100
   });
 };
+// Enable/disable the Thpace canvas to match --ftr10-thpace-enabled. If the Thpace
+// lib hasn't finished loading yet, retry on a short timer (it self-cancels once it
+// applies, so there's no lingering interval in the steady state).
+function __reconcileThpace(resolved) {
+  var on = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
+  if (window.ftr10Thpace) {
+    if (window.__ftr10ThpaceLast !== on) {
+      __trace('thpace-toggle', { enabled: on });
+      window.__ftr10ThpaceLast = on;
+    }
+    on ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
+    window.__ftr10ThpaceRetries = 0;
+    return;
+  }
+  if (window.__ftr10ThpaceRetries === undefined) window.__ftr10ThpaceRetries = 0;
+  if (window.__ftr10ThpaceRetries > 100) return; // ~10s elapsed, give up
+  window.__ftr10ThpaceRetries++;
+  setTimeout(function() { __reconcileThpace(resolved); }, 100);
+}
 __stage('applyVars-default-begin');
 applyVars(__defaultVars);
 __stage('applyVars-default-end');
