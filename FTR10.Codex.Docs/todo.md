@@ -1,34 +1,22 @@
 # To Do
 
 ## Current
-- [ ] Update fonts to only have 1 table, get rid of extra variables
-        -  Remove from typography table (duplicates, values captured in Fonts table)
-                - font-activitybar
-                - font-sidebar
-                - font-panel-bottom
-                - font-panel-top
-                - font-auxiliarybar
-                - body-font (not needed)
-        -  Move heading-font and code-font to the fonts table (verify if those are even wired to anything first)  
-
-- [ ] Check and see where the headers table went, I think some variables got left off, this could be because they are computed values only, should these have overrides?
-
-- [ ] Fix TH Pace not saving correctly, gui shows it as enabled, but it does not enable
-
-- [ ] Make the splash screen awesome, make it at minimum 3 seconds long
-
-- [ ] Get rid of tables that are no longer needed or captured in other tables
-        - Palette
-        - Pane Opacity
-
-- [ ] Combine Text and Fonts into one table
-
-- [ ] Combine UI, Status Colors, Semantic (what even is this??), and Shape into one table named UI
-
-- [ ] Redo Backgrounds table - 
-
 
 ## Complete
+- [x] Update fonts to only have 1 table, get rid of extra variables (062351b)
+        - Removed dead per-area font vars (font-activitybar/sidebar/panel-bottom/panel-top/auxiliarybar) from Typography table, Font Settings section, SELECT_OPTIONS_A, __PANEL_FONT_KEYS. body-font dropped from editable simple table.
+        - heading-font + code-font verified wired (preview.less/ThemeCustomizer) and moved into the Text table (items 5-7).
+- [x] Check and see where the headers table went — INVESTIGATED: h1-color..h5-color exist and are defined as var(--ftr10-accent-N) in constants.ts; they live in the advanced 'Headings' section and are intentionally computed (derived from accents), not user overrides. Never were in simple mode. OPEN QUESTION for user: surface them in simple mode? (currently advanced-only, by design).
+- [x] Fix TH Pace not saving correctly (781bd9d)
+        - Root cause in shim.ts applyVars: (1) 'var thpaceOn' hoisting — declared after the early-return that used it, always undefined on skipped path; (2) race — applyVars(__defaultVars) ran before the async Thpace lib loaded, so enable/disable was skipped and never re-triggered → lib fell back to localStorage default (enabled). Fix: __reconcileThpace(resolved) on BOTH paths + 100ms retry until window.ftr10Thpace exists.
+- [x] Make the splash screen awesome, >=3s (1862f10)
+        - New overlay: radial backdrop, drifting circuit, pulsing glow, dual counter-rotating rings, gradient-shine FTR10 CODEX wordmark, INITIALIZING subtitle, loading bar. MIN_SPLASH_MS=3200 enforced (chrome reveals when built, splash held on top until min time), fallback 4.5s. <!--/ftr10-splash--> marker + legacy-cleanup for re-strippable markup.
+- [x] Get rid of tables no longer needed (Palette, Pane Opacity) (df26cf8)
+- [x] Combine Text and Fonts into one table (df26cf8) — Text now carries heading-font + code-font (font-aware dropdowns via data-vfont)
+- [x] Combine UI, Status Colors, Semantic, Shape into one 'UI' table (df26cf8) — simple mode = Backgrounds, Text, UI, Syntax Tokens
+- [x] Redo Backgrounds table (cf1c2ee) — de-duped the Effect dropdown (--ftr10-bg-effect was in both the simple group AND SELECT_OPTIONS_A, producing a second dropdown over the dedicated #bgEffectSelect). NOTE: spec was open-ended; only the concrete duplicate-control bug was addressed — confirm with user if a broader redesign is wanted.
+
+## Complete (prior)
 - [x] Change all color pickers to use the new one that palette roles has
 - [x] Remove Solarized Light, Vue Green, Github Light
 - [x] Evaluate the remaining preview themes and the differences between them
