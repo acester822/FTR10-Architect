@@ -880,6 +880,38 @@ window.__FTR10_INIT__ = ${initJson};
      must ignore pointerdowns there so resizing doesn't fight dragging. */
   body.edit-layout .draggable { outline-offset: 3px; }
 
+  /* ── layout-saved toast ─────────────────────────────────────── */
+  .layout-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 22px;
+    background: rgba(2,10,22,0.92);
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.5);
+    color: var(--ui-accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    box-shadow: 0 0 22px rgba(var(--ui-accent-rgb), 0.35);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .layout-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .layout-toast .toast-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ui-accent);
+    box-shadow: 0 0 8px var(--ui-accent);
+  }
+
   /* ── grab-to-pan (when not editing layout) ───────────────────── */
   :root { --pan-x: 0px; --pan-y: 0px; }
   .panel-row, .tables-below {
@@ -1892,6 +1924,7 @@ __wvTrace('architect-script-init', {});
   function exitEdit() {
     document.body.classList.remove('edit-layout');
     btn.classList.remove('active');
+    let saved = 0;
     MOVABLE.forEach(id => {
       const el = elFor(id); if (!el) return;
       if (el.classList.contains('dragged')) {
@@ -1899,12 +1932,14 @@ __wvTrace('architect-script-init', {});
         // plus any size the user resized it to.
         const g = geomOf(el);
         commit(id, g);
+        saved++;
       } else {
         // Never dragged — clear seeded inline pos so it reverts to default layout
         el.style.removeProperty('--drag-x');
         el.style.removeProperty('--drag-y');
       }
     });
+    if (saved > 0) showLayoutToast('Layout saved');
   }
   btn.addEventListener('click', () => {
     if (document.body.classList.contains('edit-layout')) exitEdit(); else enterEdit();
@@ -1966,6 +2001,7 @@ __wvTrace('architect-script-init', {});
     el.style.removeProperty('--drag-w');
     el.style.removeProperty('--drag-h');
     commitRemoval(id);
+    showLayoutToast('Layout reset');
     // Re-seed for visual stability if staying in edit mode: compute default layout position after removal
     requestAnimationFrame(() => {
       if (!document.body.classList.contains('edit-layout')) return;
@@ -2988,6 +3024,25 @@ function showPanelError(text) {
     }
     el.textContent = '[FTR10] ' + text;
     el.style.display = 'block';
+  } catch (_) {}
+}
+let _layoutToastTimer = null;
+function showLayoutToast(msg) {
+  try {
+    let el = document.getElementById('ftr10-layout-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ftr10-layout-toast';
+      el.className = 'layout-toast';
+      el.innerHTML = '<span class="toast-dot"></span><span class="toast-text"></span>';
+      document.body.appendChild(el);
+    }
+    el.querySelector('.toast-text').textContent = msg;
+    // force reflow so the transition runs even on repeated saves
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(_layoutToastTimer);
+    _layoutToastTimer = setTimeout(() => { el.classList.remove('show'); }, 1800);
   } catch (_) {}
 }
 function setBgImageFromGallery(name) {
