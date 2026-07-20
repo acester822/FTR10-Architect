@@ -3485,6 +3485,12 @@ function drawPicker() {
     const el = document.getElementById(id);
     if (el) { el.style.background = rgba; el.style.setProperty('--glow', hex + '88'); }
   });
+  // Live-update Thpace / workbench during slider drag (same role vars schedulePaletteLiveUpdate uses)
+  const _roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
+  const _liveHex = a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, '0');
+  if (overrideIdx >= 0 && overrideIdx < _roleVars.length) {
+    document.documentElement.style.setProperty(_roleVars[overrideIdx], _liveHex);
+  }
 }
 
 function openOverrideModal(idx) {
