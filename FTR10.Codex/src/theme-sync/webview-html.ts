@@ -3495,7 +3495,7 @@ function openOverrideModal(idx) {
   if (alphaEl) alphaEl.value = String(pickAlpha);
   if (alphaValEl) alphaValEl.textContent = pickAlpha + '%';
   const roleNames = ['Primary','Accent','Support','Contrast','Surface','Depth'];
-  document.getElementById('overrideModalTitle').textContent = \`Override \\${roleNames[idx] || 'Color ' + (idx + 1)}\`;
+  document.getElementById('overrideModalTitle').textContent = \`Override \${roleNames[idx] || 'Color ' + (idx + 1)}\`;
   const { h, s, v } = hex2hsv(overrideOriginal.slice(0, 7));
   pickH = h; pickS = s; pickV = v;
   document.getElementById('overrideModalBg').classList.add('open');
