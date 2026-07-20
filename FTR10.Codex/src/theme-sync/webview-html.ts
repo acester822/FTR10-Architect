@@ -2673,7 +2673,9 @@ window._renderVarsPanel = renderVarsPanel;
 const FONT_OPTIONS_A = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
 const SELECT_OPTIONS_A = {
       '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
-  '--ftr10-body-font': FONT_OPTIONS_A, '--ftr10-heading-font': FONT_OPTIONS_A, '--ftr10-code-font': FONT_OPTIONS_A
+  '--ftr10-body-font': FONT_OPTIONS_A, '--ftr10-heading-font': FONT_OPTIONS_A, '--ftr10-code-font': FONT_OPTIONS_A,
+  '--ftr10-font-activitybar': FONT_OPTIONS_A, '--ftr10-font-sidebar': FONT_OPTIONS_A, '--ftr10-font-panel-bottom': FONT_OPTIONS_A,
+  '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A
 };
 
 // Apply the theme's font (and a few layout) vars to THIS webview's own document so
@@ -2682,7 +2684,9 @@ const SELECT_OPTIONS_A = {
 // only forwarded them via BroadcastChannel — never applied locally. Without this the
 // GUI stays in its hardcoded font regardless of the user's font choice.
 const __PANEL_FONT_KEYS = [
-  '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font'
+  '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font',
+  '--ftr10-font-activitybar', '--ftr10-font-sidebar', '--ftr10-font-panel-bottom',
+  '--ftr10-font-panel-top', '--ftr10-font-auxiliarybar'
 ];
 function applyPanelFontVars(values) {
   if (!values) return;
@@ -2698,7 +2702,7 @@ function isHexA(v) { return /^#[0-9a-f]{6,8}$/i.test((v||'').trim()); }
 function toPickerHexA(v) { const h=(v||'').trim(); return h.length>=7?h.slice(0,7):'#000000'; }
 function hexAlphaA(v) { const h=(v||'').trim(); return h.length===9?Math.round(parseInt(h.slice(7,9),16)/255*100):100; }
 
-function _isFontKeyA(key) { return key === '--ftr10-body-font' || key === '--ftr10-heading-font' || key === '--ftr10-code-font'; }
+function _isFontKeyA(key) { return /^--ftr10-(body|heading|code)-font$/.test(key) || /^--ftr10-font-(activitybar|sidebar|panel-bottom|panel-top|auxiliarybar)$/.test(key); }
 function buildVarsFieldRow(key, value) {
   const opts = SELECT_OPTIONS_A[key];
   const label = key.replace('--ftr10-', '');
@@ -2969,9 +2973,13 @@ vscode.postMessage({ command: 'getConfig' });
 
 // ── quick panels (Fonts + Opacity) ───────────────────────────────────────────
 const QP_FONT_ROWS = [
-  { key: '--ftr10-body-font',    label: 'Body'    },
-  { key: '--ftr10-heading-font', label: 'Heading' },
-  { key: '--ftr10-code-font',    label: 'Code'    },
+  { key: '--ftr10-heading-font',      label: 'Heading'  },
+  { key: '--ftr10-code-font',         label: 'Code'     },
+  { key: '--ftr10-font-activitybar',  label: 'Activity' },
+  { key: '--ftr10-font-sidebar',      label: 'Sidebar'  },
+  { key: '--ftr10-font-panel-bottom', label: 'Panel Bot'},
+  { key: '--ftr10-font-panel-top',    label: 'Panel Top'},
+  { key: '--ftr10-font-auxiliarybar', label: 'Aux'      },
 ];
 const QP_OPACITY_ROWS = [
   { key: '--ftr10-opacity-activitybar',  label: 'Activity' },

@@ -10,21 +10,18 @@ export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
   {
     label: 'Backgrounds',
     keys: [
-      '--ftr10-bg', '--ftr10-bg-editor', '--ftr10-bg-image-panels', '--ftr10-bg-effect'
+      '--ftr10-bg', '--ftr10-bg-editor', '--ftr10-bg-image-panels', '--ftr10-bg-effect',
+      '--ftr10-glass-bg', '--ftr10-glass-bg-menu'
     ]
   },
   {
     label: 'Text',
-    keys: [
-      '--ftr10-text', '--ftr10-text-muted',
-      '--ftr10-heading-font', '--ftr10-code-font'
-    ]
+    keys: ['--ftr10-text', '--ftr10-text-muted']
   },
   {
     label: 'UI',
     keys: [
       '--ftr10-cursor', '--ftr10-tab-border-color',
-      '--ftr10-glass-bg', '--ftr10-glass-bg-menu',
       '--ftr10-success', '--ftr10-error', '--ftr10-warning', '--ftr10-info',
       '--ftr10-purple', '--ftr10-cyan',
       '--ftr10-radius-md', '--ftr10-radius-lg', '--ftr10-corner-shape'
