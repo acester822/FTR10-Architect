@@ -997,6 +997,8 @@ window.__FTR10_INIT__ = ${initJson};
     border: 1px solid rgba(255,255,255,0.15);
     flex-shrink: 0;
     box-shadow: 0 0 12px rgba(var(--ui-accent-rgb),0.2);
+    /* Checkerboard so translucent colors are clearly visible */
+    background-image: repeating-conic-gradient(#444 0% 25%, #2a2a2a 0% 50%) 0 0 / 10px 10px;
   }
   .override-preview-hex {
     font-family: 'Share Tech Mono', monospace;
@@ -3477,7 +3479,7 @@ function drawPicker() {
   const hex = hsv2hex(pickH, pickS, pickV);
   const a = pickAlpha / 100;
   const rgba = 'rgba(' + parseInt(hex.slice(1,3),16) + ',' + parseInt(hex.slice(3,5),16) + ',' + parseInt(hex.slice(5,7),16) + ',' + a.toFixed(3) + ')';
-  document.getElementById('overridePreviewSwatch').style.background = rgba;
+  document.getElementById('overridePreviewSwatch').style.backgroundColor = rgba;
   document.getElementById('overridePreviewHex').textContent = (a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, '0')).toUpperCase();
   [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
     const el = document.getElementById(id);
