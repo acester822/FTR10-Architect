@@ -1004,6 +1004,35 @@ window.__FTR10_INIT__ = ${initJson};
     letter-spacing: 1.5px;
     color: rgba(255,255,255,0.92);
   }
+  /* Alpha (opacity) control row */
+  .override-alpha-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 2px;
+  }
+  .override-alpha-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(var(--ui-accent-rgb), 0.85);
+    flex-shrink: 0;
+  }
+  .override-alpha-range {
+    flex: 1;
+    accent-color: var(--ui-accent);
+    cursor: pointer;
+  }
+  .override-alpha-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.85);
+    flex-shrink: 0;
+    min-width: 38px;
+    text-align: right;
+  }
   .override-btn-row {
     display: flex;
     gap: 7px;
@@ -2437,7 +2466,7 @@ function updateLegend(targetId) {
       const role = ROLE_NAMES[i] || ('Color ' + (i + 1));
       const colorName = getColorNameFromHex(hex);
       return (
-        '<div class="legend-row">' +
+        '<div class="legend-row" data-idx="' + i + '">' +
           '<span class="legend-dot" style="background:' + hex + ';--lg:' + hex + ';"></span>' +
           '<span class="legend-meta"><span class="legend-name">' + role + '</span><span class="legend-color-name">' + colorName + '</span></span>' +
           '<span class="legend-hex" data-hex="' + hex + '">' + hex.toUpperCase() + '</span>' +
@@ -2450,10 +2479,12 @@ function bindLegendClicks(targetId) {
   const el = document.getElementById(targetId);
   if (!el) return;
   el.addEventListener('click', (e) => {
-    const item = e.target.closest('.legend-hex');
-    if (!item) return;
-    const hex = item.getAttribute('data-hex');
-    if (hex) copyHex(hex);
+    const hexSpan = e.target.closest('.legend-hex');
+    if (hexSpan) { copyHex(hexSpan.getAttribute('data-hex')); return; }
+    const row = e.target.closest('.legend-row');
+    if (!row) return;
+    const idx = parseInt(row.getAttribute('data-idx'), 10);
+    if (!isNaN(idx) && typeof openOverrideModal === 'function') openOverrideModal(idx);
   });
 }
 
@@ -3348,6 +3379,11 @@ window._codexClearOverride = (idx) => {
       <div class="override-preview-swatch" id="overridePreviewSwatch"></div>
       <span class="override-preview-hex" id="overridePreviewHex">#000000</span>
     </div>
+    <div class="override-alpha-row">
+      <label class="override-alpha-label">Alpha</label>
+      <input type="range" class="override-alpha-range" id="overrideAlpha" min="0" max="100" value="100" />
+      <span class="override-alpha-val" id="overrideAlphaVal">100%</span>
+    </div>
     <div class="override-btn-row">
       <button class="override-btn" id="overrideBtnCancel">Cancel</button>
       <button class="override-btn confirm" id="overrideBtnConfirm">✓ Set</button>
@@ -3360,7 +3396,7 @@ window._codexClearOverride = (idx) => {
 // ── color override picker ─────────────────────────────────────────────────────
 let overrideIdx = -1;
 let overrideOriginal = null;
-let pickH = 0, pickS = 1, pickV = 1;
+let pickH = 0, pickS = 1, pickV = 1, pickAlpha = 100;
 let slDragging = false, hueDragging = false;
 
 const slCv = document.getElementById('slCanvas');
@@ -3439,20 +3475,28 @@ function drawPicker() {
   drawSLCanvas();
   drawHueStrip();
   const hex = hsv2hex(pickH, pickS, pickV);
-  document.getElementById('overridePreviewSwatch').style.background = hex;
-  document.getElementById('overridePreviewHex').textContent = hex.toUpperCase();
-  [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
+  const a = pickAlpha / 100;
+  const rgba = 'rgba(' + parseInt(hex.slice(1,3),16) + ',' + parseInt(hex.slice(3,5),16) + ',' + parseInt(hex.slice(5,7),16) + ',' + a.toFixed(3) + ')';
+  document.getElementById('overridePreviewSwatch').style.background = rgba;
+  document.getElementById('overridePreviewHex').textContent = (a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, '0')).toUpperCase();
+  [\`lp\\${overrideIdx}\`, \`rp\\${overrideIdx}\`].forEach(id => {
     const el = document.getElementById(id);
-    if (el) { el.style.background = hex; el.style.setProperty('--glow', hex + '88'); }
+    if (el) { el.style.background = rgba; el.style.setProperty('--glow', hex + '88'); }
   });
 }
 
 function openOverrideModal(idx) {
   overrideIdx = idx;
   overrideOriginal = (window._codexPalette || [])[idx] || '#888888';
+  // Parse any existing alpha (8-char hex) so re-opening keeps the setting.
+  pickAlpha = overrideOriginal.length >= 9 ? Math.round(parseInt(overrideOriginal.slice(7,9), 16) / 255 * 100) : 100;
+  const alphaEl = document.getElementById('overrideAlpha');
+  const alphaValEl = document.getElementById('overrideAlphaVal');
+  if (alphaEl) alphaEl.value = String(pickAlpha);
+  if (alphaValEl) alphaValEl.textContent = pickAlpha + '%';
   const roleNames = ['Primary','Accent','Support','Contrast','Surface','Depth'];
-  document.getElementById('overrideModalTitle').textContent = \`Override \${roleNames[idx] || 'Color ' + (idx + 1)}\`;
-  const { h, s, v } = hex2hsv(overrideOriginal);
+  document.getElementById('overrideModalTitle').textContent = \`Override \\${roleNames[idx] || 'Color ' + (idx + 1)}\`;
+  const { h, s, v } = hex2hsv(overrideOriginal.slice(0, 7));
   pickH = h; pickS = s; pickV = v;
   document.getElementById('overrideModalBg').classList.add('open');
   drawPicker();
@@ -3500,14 +3544,29 @@ hueCv.addEventListener('touchend', () => { hueDragging = false; });
 window.addEventListener('mouseup', () => { slDragging = false; hueDragging = false; });
 
 document.getElementById('overrideBtnConfirm').addEventListener('click', () => {
-  const hex = hsv2hex(pickH, pickS, pickV);
+  let hex = hsv2hex(pickH, pickS, pickV);
+  // Append alpha as an 8-digit hex tail when not fully opaque.
+  if (pickAlpha < 100) {
+    const aa = Math.round(pickAlpha / 100 * 255).toString(16).padStart(2, '0');
+    hex = hex + aa;
+  }
   if (window._codexSetOverride) window._codexSetOverride(overrideIdx, hex);
-  [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
+  [\`lp\\${overrideIdx}\`, \`rp\\${overrideIdx}\`].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('has-override');
   });
   closeOverrideModal(true);
 });
+
+const overrideAlphaEl = document.getElementById('overrideAlpha');
+const overrideAlphaValEl = document.getElementById('overrideAlphaVal');
+if (overrideAlphaEl) {
+  overrideAlphaEl.addEventListener('input', () => {
+    pickAlpha = parseInt(overrideAlphaEl.value, 10);
+    if (overrideAlphaValEl) overrideAlphaValEl.textContent = pickAlpha + '%';
+    drawPicker();
+  });
+}
 
 document.getElementById('overrideBtnCancel').addEventListener('click', () => closeOverrideModal(false));
 
