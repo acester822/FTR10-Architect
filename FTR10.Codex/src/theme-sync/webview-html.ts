@@ -500,13 +500,14 @@ window.__FTR10_INIT__ = ${initJson};
     justify-content: center;
     gap: 0;
     width: 100%;
-    max-width: 480px;
+    max-width: 540px;
     margin: 0 auto 18px;
     min-height: 480px;
   }
   .center-col {
-    flex: 0 0 auto;
-    min-width: 0;
+    flex: 0 0 220px;
+    width: 220px;
+    min-width: 220px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -537,8 +538,8 @@ window.__FTR10_INIT__ = ${initJson};
     backdrop-filter: blur(4px);
     box-shadow: inset 0 0 14px rgba(var(--ui-accent-rgb),0.04);
   }
-  .ep-wrap.left  { transform: perspective(420px) rotateY(22deg) rotateZ(-1deg) translateX(31px); }
-  .ep-wrap.right { transform: perspective(420px) rotateY(-22deg) rotateZ(1deg) translateX(-31px); }
+  .ep-wrap.left  { transform: perspective(420px) rotateY(12deg) rotateZ(-1deg) translateX(12px); }
+  .ep-wrap.right { transform: perspective(420px) rotateY(-12deg) rotateZ(1deg) translateX(-12px); }
 
   .ep-canvas {
     position: absolute;
@@ -832,7 +833,8 @@ window.__FTR10_INIT__ = ${initJson};
      The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
   /* Default draggable sizing */
   .draggable { position: relative; }
-  #varTables.draggable { position: relative; width: 100%; max-width: 720px; }
+  #varTables.draggable { position: relative; width: 100%; max-width: 280px; }
+  .var-tables { width: 100%; max-width: 280px; }
   /* A .dragged element has a SAVED position (from layoutOverrides) and keeps it
      applied ALWAYS — not just during edit mode — so the move persists on reload. */
   .draggable.dragged {
