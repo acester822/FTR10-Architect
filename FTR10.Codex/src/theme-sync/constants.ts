@@ -8,13 +8,6 @@ import * as state from './state';
 
 export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
   {
-    label: 'Palette',
-    keys: [
-      '--ftr10-accent-1', '--ftr10-accent-2', '--ftr10-accent-3', '--ftr10-accent-4',
-      '--ftr10-surface-1', '--ftr10-surface-2'
-    ]
-  },
-  {
     label: 'Backgrounds',
     keys: [
       '--ftr10-bg', '--ftr10-bg-editor', '--ftr10-bg-image-panels', '--ftr10-bg-effect'
@@ -22,39 +15,19 @@ export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
   },
   {
     label: 'Text',
-    keys: ['--ftr10-text', '--ftr10-text-muted']
+    keys: [
+      '--ftr10-text', '--ftr10-text-muted',
+      '--ftr10-heading-font', '--ftr10-code-font'
+    ]
   },
   {
     label: 'UI',
     keys: [
       '--ftr10-cursor', '--ftr10-tab-border-color',
-      '--ftr10-glass-bg', '--ftr10-glass-bg-menu'
-    ]
-  },
-  {
-    label: 'Status Colors',
-    keys: ['--ftr10-success', '--ftr10-error', '--ftr10-warning', '--ftr10-info']
-  },
-  {
-    label: 'Semantic',
-    keys: ['--ftr10-purple', '--ftr10-cyan']
-  },
-  {
-    label: 'Typography',
-    keys: [
-      '--ftr10-body-font', '--ftr10-heading-font', '--ftr10-code-font'
-    ]
-  },
-  {
-    label: 'Shape',
-    keys: ['--ftr10-radius-md', '--ftr10-radius-lg', '--ftr10-corner-shape']
-  },
-  {
-    label: 'Pane Opacity',
-    keys: [
-      '--ftr10-opacity-activitybar', '--ftr10-opacity-sidebar',
-      '--ftr10-opacity-panel-bottom', '--ftr10-opacity-panel-top',
-      '--ftr10-opacity-auxiliarybar'
+      '--ftr10-glass-bg', '--ftr10-glass-bg-menu',
+      '--ftr10-success', '--ftr10-error', '--ftr10-warning', '--ftr10-info',
+      '--ftr10-purple', '--ftr10-cyan',
+      '--ftr10-radius-md', '--ftr10-radius-lg', '--ftr10-corner-shape'
     ]
   },
   {

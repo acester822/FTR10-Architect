@@ -2673,7 +2673,7 @@ window._renderVarsPanel = renderVarsPanel;
 const FONT_OPTIONS_A = ["inherit",'Cartograph','DM Mono','Exo 2','Fira Code','JetBrains Mono','Monaspace Krypton','Monaspace Radon','Orbitron','Oxanium','Rajdhani','Recursive','Silkscreen','Space Grotesk','Victor Mono','Victor Mono NF'];
 const SELECT_OPTIONS_A = {
       '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
-  '--ftr10-code-font': FONT_OPTIONS_A
+  '--ftr10-body-font': FONT_OPTIONS_A, '--ftr10-heading-font': FONT_OPTIONS_A, '--ftr10-code-font': FONT_OPTIONS_A
 };
 
 // Apply the theme's font (and a few layout) vars to THIS webview's own document so
@@ -2698,15 +2698,20 @@ function isHexA(v) { return /^#[0-9a-f]{6,8}$/i.test((v||'').trim()); }
 function toPickerHexA(v) { const h=(v||'').trim(); return h.length>=7?h.slice(0,7):'#000000'; }
 function hexAlphaA(v) { const h=(v||'').trim(); return h.length===9?Math.round(parseInt(h.slice(7,9),16)/255*100):100; }
 
+function _isFontKeyA(key) { return key === '--ftr10-body-font' || key === '--ftr10-heading-font' || key === '--ftr10-code-font'; }
 function buildVarsFieldRow(key, value) {
   const opts = SELECT_OPTIONS_A[key];
   const label = key.replace('--ftr10-', '');
   if (opts) {
-    // dropdown field — keep a compact inline control
+    // dropdown field — keep a compact inline control. Font vars store a full
+    // stack ("'JetBrains Mono', monospace") but the options are bare names, so
+    // normalize the current value to a name for the selected-state match.
+    const isFont = _isFontKeyA(key);
+    const cur = isFont ? _qpFontValToName(value || '') : value;
     let html = '<div class="v-field-row v-field-select">';
     html += '<div class="v-field-label" title="' + escapeHtmlA(key) + '">' + escapeHtmlA(label) + '</div>';
-    html += '<div class="v-select-wrap"><select data-vkey="' + escapeHtmlA(key) + '">';
-    opts.forEach(o => { html += '<option value="' + escapeHtmlA(o) + '"' + (o === value ? ' selected' : '') + '>' + escapeHtmlA(o) + '</option>'; });
+    html += '<div class="v-select-wrap"><select data-vkey="' + escapeHtmlA(key) + '"' + (isFont ? ' data-vfont="1"' : '') + '>';
+    opts.forEach(o => { html += '<option value="' + escapeHtmlA(o) + '"' + (o === cur ? ' selected' : '') + '>' + escapeHtmlA(o) + '</option>'; });
     html += '</select></div>';
     html += '</div>';
     return html;
@@ -2814,7 +2819,13 @@ function wireVarsInputs(content) {
   });
   content.querySelectorAll('select[data-vkey]').forEach(sel => {
     sel.addEventListener('change', () => {
-      varsState.values[sel.dataset.vkey] = sel.value;
+      const v = sel.value;
+      if (sel.dataset.vfont) {
+        // Font dropdown: store a full stack so the CSS font-family resolves.
+        varsState.values[sel.dataset.vkey] = v === 'inherit' ? 'inherit' : "'" + v + "', monospace";
+      } else {
+        varsState.values[sel.dataset.vkey] = v;
+      }
       scheduleVarsLiveUpdate();
     });
   });
