@@ -324,7 +324,8 @@ function handleMessage(msg: any): void {
       activePreset: presetId,
       presetCustomizations: state.store.themeConfig.presetCustomizations,
       presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
-      architectSessions: state.store.themeConfig.architectSessions
+      architectSessions: state.store.themeConfig.architectSessions,
+      layoutOverrides: state.store.themeConfig.layoutOverrides
     };
     if (presetId) {
       const baseValues = getBasePresetValues(presetId);
@@ -365,7 +366,8 @@ function handleMessage(msg: any): void {
       activePreset: presetId,
       presetCustomizations: state.store.themeConfig.presetCustomizations,
       presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
-      architectSessions: state.store.themeConfig.architectSessions
+      architectSessions: state.store.themeConfig.architectSessions,
+      layoutOverrides: state.store.themeConfig.layoutOverrides
     };
 
     // Diff current values against the base preset to find user customizations
@@ -393,7 +395,10 @@ function handleMessage(msg: any): void {
 
   if (msg.command === 'saveLayout' && msg.overrides) {
     // Persist drag positions for movable panels (Edit-Layout mode).
-    state.store.themeConfig.layoutOverrides = msg.overrides;
+    // Merge so a concurrent liveUpdate (which preserves layoutOverrides) can't clobber it.
+    state.store.themeConfig.layoutOverrides = Object.assign(
+      {}, state.store.themeConfig.layoutOverrides || {}, msg.overrides
+    );
     persistThemeConfig();
     return;
   }

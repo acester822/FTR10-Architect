@@ -1193,6 +1193,20 @@ window.__FTR10_INIT__ = ${initJson};
     box-shadow: 0 0 18px rgba(var(--ui-accent-rgb),0.08), inset 0 0 10px rgba(var(--ui-accent-rgb),0.05);
     backdrop-filter: blur(3px);
   }
+  /* Backgrounds vars merged into the Backgrounds quick-panel (single table) */
+  .bg-vars-block {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+  }
+  .bg-vars-title {
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(var(--ui-accent-rgb), 0.85);
+    margin-bottom: 6px;
+  }
+  .bg-vars-block .v-field-row { border-bottom: 1px solid rgba(255,255,255,0.05); }
   .qp-row {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -1254,6 +1268,10 @@ window.__FTR10_INIT__ = ${initJson};
     backdrop-filter: blur(3px);
     pointer-events: none;
   }
+  /* The Status table reuses .hud but must receive pointer events so it can be
+     dragged/resized in Edit-Layout mode. (The .hud pointer-events:none above is
+     for the old display-only HUD; this re-enables interaction for the draggable one.) */
+  .hud.draggable { pointer-events: auto; }
   .hud-title {
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.74rem;
@@ -2632,12 +2650,31 @@ function renderVarsPanel() {
   const content = document.getElementById('varTables');
   if (!content) return;
   const groups = varsState.advanced ? varsState.sections : varsState.simpleGroups;
-  // Build one independent, draggable + resizable table per section.
+  // The "Backgrounds" vars section is merged INTO the Backgrounds quick-panel
+  // (bgPanel) so there is a single Backgrounds table instead of two. All other
+  // sections become their own independent, draggable + resizable table.
   let html = '';
+  const bgPanel = document.getElementById('bgPanel');
+  const bgVarsHost = bgPanel ? document.getElementById('bgPanelVars') || (function () {
+    const d = document.createElement('div');
+    d.id = 'bgPanelVars';
+    d.className = 'bg-vars-block';
+    bgPanel.appendChild(d);
+    return d;
+  })() : null;
+  if (bgVarsHost) bgVarsHost.innerHTML = '';
   groups.forEach(group => {
     const label = group.label || group.name || '';
     const keys = (group.keys || []);
     if (keys.length === 0) return;
+    const isBackgrounds = (group.name || label).toLowerCase().trim() === 'backgrounds';
+    if (isBackgrounds && bgVarsHost) {
+      // Merge into the Backgrounds quick-panel rather than a separate table.
+      let bhtml = '<div class="bg-vars-title">Variables</div>';
+      keys.forEach(k => { bhtml += buildVarsFieldRow(k, varsState.values[k] !== undefined ? varsState.values[k] : ''); });
+      bgVarsHost.insertAdjacentHTML('beforeend', bhtml);
+      return;
+    }
     const slug = escapeHtmlA(String(group.name || label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
     const tid = 'vt_' + slug;
     html += '<div class="v-table draggable" id="' + tid + '">';
@@ -2650,11 +2687,16 @@ function renderVarsPanel() {
   content.innerHTML = html;
   // Register every per-section table as movable, then re-apply any saved layout.
   groups.forEach(group => {
+    const name = (group.name || group.label || '').toLowerCase().trim();
+    if (name === 'backgrounds') return; // merged into bgPanel, not its own table
     const slug = escapeHtmlA(String(group.name || (group.label||'')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
     if ((group.keys || []).length) window.__registerMovableTable && window.__registerMovableTable('vt_' + slug);
   });
   if (window.__applyLayoutOverrides) window.__applyLayoutOverrides(window.__layoutOverrides);
   wireVarsInputs(content);
+  // The Backgrounds vars were merged into the bgPanel quick-panel — wire those too.
+  const bgVarsHost = document.getElementById('bgPanelVars');
+  if (bgVarsHost) wireVarsInputs(bgVarsHost);
   // Sync bg toggles to current state
   syncBgToggleState(varsState.values);
 }
