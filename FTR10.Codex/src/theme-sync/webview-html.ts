@@ -532,7 +532,7 @@ window.__FTR10_INIT__ = ${initJson};
     position: relative;
     flex: 0 0 auto;
     padding: 14px 12px;
-    margin-top: -12px;
+    margin-top: -4px;
     border-radius: 18px;
     background: rgba(0,8,20,0.55);
     backdrop-filter: blur(4px);
