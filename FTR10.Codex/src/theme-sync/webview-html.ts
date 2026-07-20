@@ -3033,7 +3033,7 @@ function renderQuickPanels() {
       QP_OPACITY_ROWS.map(r => {
         const cur = parseFloat(vals[r.key] || '0.4');
         const pct = Math.round(cur * 100);
-        const elId = 'qpv_' + r.key.replace(/--ftr10-/,'').replace(/-/g,'_') + (below ? '_b' : '');
+        const elId = 'qpv_' + r.key.replace(/--ftr10-/,'').replace(/-/g,'_');
         return '<div class="qp-row"><span class="qp-label">' + r.label + '</span>' +
           '<div class="qp-slider-wrap">' +
           '<input type="range" class="qp-slider" min="0" max="1" step="0.05" value="' + cur + '" data-qpkey="' + r.key + '" data-qpvid="' + elId + '">' +
