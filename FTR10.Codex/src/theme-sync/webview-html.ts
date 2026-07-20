@@ -2300,7 +2300,9 @@ function schedulePaletteLiveUpdate() {
       const col = palette[i];
       if (col && /^#[0-9a-fA-F]{6,8}$/.test(col)) {
         // Mirror deriveCodexPreset tier-1 alpha conventions.
-        next[v] = i < 4 ? (i === 0 ? col + 'd4' : col) : (i === 4 ? col + '30' : col + '18');
+        // 8-char hex already has user-chosen alpha — pass through as-is.
+        next[v] = col.length === 9 ? col
+          : i < 4 ? (i === 0 ? col + 'd4' : col) : (i === 4 ? col + '30' : col + '18');
       }
     });
     varsState.values = next;
@@ -2921,7 +2923,7 @@ window.addEventListener('message', (e) => {
     roleVars.forEach((v, i) => {
       const val = rv[v];
       if (val && /^#[0-9a-fA-F]{6,8}$/.test(val.trim())) {
-        overrides[i] = val.trim().slice(0, 7); // store as 6-char hex
+        overrides[i] = val.trim(); // preserve full hex (6 or 8 chars with alpha)
       }
     });
     varsState.values = rv;
@@ -3360,16 +3362,23 @@ window._codexSetOverride = (idx, hex) => {
   updateLegend('colorLegendDesktop');
   updateLegend('colorLegendMobile');
   updateUI(false);
-  // Remove the live-preview inline style so the shim's :root !important takes over
-  const __roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
-  if (idx >= 0 && idx < __roleVars.length) {
-    document.documentElement.style.removeProperty(__roleVars[idx]);
-  }
 };
 window._codexClearOverride = (idx) => {
   delete overrides[idx];
   updateUI(false);
   window._codexPalette = palette;
+};
+// Lightweight live-preview: update overrides + palette + varsState and post
+// liveUpdate so the shim applies the color to the workbench (Thpace reads it).
+// Skips full updateUI (drawWheel, etc.) to keep slider drag smooth.
+window._previewRoleColor = function(idx, hex) {
+  if (idx < 0 || idx > 5) return;
+  overrides[idx] = hex;
+  palette[idx] = hex;
+  const roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
+  varsState.values[roleVars[idx]] = hex;
+  window._codexPalette = palette;
+  vscode.postMessage({ command: 'liveUpdate', values: varsState.values });
 };
 })();
 </script>
@@ -3490,11 +3499,9 @@ function drawPicker() {
     const el = document.getElementById(id);
     if (el) { el.style.background = rgba; el.style.setProperty('--glow', hex + '88'); }
   });
-  // Live-update Thpace / workbench during slider drag (same role vars schedulePaletteLiveUpdate uses)
-  const _roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
-  if (overrideIdx >= 0 && overrideIdx < _roleVars.length) {
-    document.documentElement.style.setProperty(_roleVars[overrideIdx], rgba, 'important');
-  }
+  // Live-update Thpace / workbench during slider drag
+  const _liveHex = a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, '0');
+  if (window._previewRoleColor) window._previewRoleColor(overrideIdx, _liveHex);
 }
 
 function openOverrideModal(idx) {
