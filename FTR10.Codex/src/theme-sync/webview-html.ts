@@ -3360,6 +3360,11 @@ window._codexSetOverride = (idx, hex) => {
   updateLegend('colorLegendDesktop');
   updateLegend('colorLegendMobile');
   updateUI(false);
+  // Remove the live-preview inline style so the shim's :root !important takes over
+  const __roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
+  if (idx >= 0 && idx < __roleVars.length) {
+    document.documentElement.style.removeProperty(__roleVars[idx]);
+  }
 };
 window._codexClearOverride = (idx) => {
   delete overrides[idx];
@@ -3488,7 +3493,7 @@ function drawPicker() {
   // Live-update Thpace / workbench during slider drag (same role vars schedulePaletteLiveUpdate uses)
   const _roleVars = ['--ftr10-accent-1','--ftr10-accent-2','--ftr10-accent-3','--ftr10-accent-4','--ftr10-surface-1','--ftr10-surface-2'];
   if (overrideIdx >= 0 && overrideIdx < _roleVars.length) {
-    document.documentElement.style.setProperty(_roleVars[overrideIdx], rgba);
+    document.documentElement.style.setProperty(_roleVars[overrideIdx], rgba, 'important');
   }
 }
 
