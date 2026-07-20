@@ -2695,7 +2695,6 @@ function renderVarsPanel() {
   if (window.__applyLayoutOverrides) window.__applyLayoutOverrides(window.__layoutOverrides);
   wireVarsInputs(content);
   // The Backgrounds vars were merged into the bgPanel quick-panel — wire those too.
-  const bgVarsHost = document.getElementById('bgPanelVars');
   if (bgVarsHost) wireVarsInputs(bgVarsHost);
   // Sync bg toggles to current state
   syncBgToggleState(varsState.values);
