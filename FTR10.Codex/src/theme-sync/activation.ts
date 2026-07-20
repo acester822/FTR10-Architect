@@ -585,16 +585,25 @@ function applyArchitectSession(sessionId: string): void {
 }
 
 function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string): void {
-  if (isPanelAlive(state.store.CodexPanel)) {
-    state.store.CodexPanel!.reveal(vscode.ViewColumn.One);
-    if (sessionId) {
-      const session = state.store.themeConfig.architectSessions[sessionId];
-      if (session) {
-        const derivedValues = state.store.themeConfig.activePreset === `arch-${sessionId}` ? state.store.themeConfig.values : undefined;
-        state.store.CodexPanel.webview.postMessage({ command: 'loadSession', session, derivedValues });
+  const existing = state.store.CodexPanel;
+  if (existing) {
+    try {
+      // A panel reference can be "alive" (isDisposed === false) while its inner
+      // webview is already torn down; reveal() then throws "Webview is disposed".
+      // Probe it directly and fall through to a clean recreate on ANY failure.
+      existing.reveal(vscode.ViewColumn.One);
+      if (sessionId) {
+        const session = state.store.themeConfig.architectSessions[sessionId];
+        if (session) {
+          const derivedValues = state.store.themeConfig.activePreset === `arch-${sessionId}` ? state.store.themeConfig.values : undefined;
+          existing.webview.postMessage({ command: 'loadSession', session, derivedValues });
+        }
       }
+      return;
+    } catch (_e) {
+      // Stale/disposed panel — clear the reference so we recreate a fresh one below.
+      state.store.CodexPanel = undefined;
     }
-    return;
   }
   state.store.CodexPanel = vscode.window.createWebviewPanel(
     'state.store.CodexPanel', 'FTR10 Architect', vscode.ViewColumn.One,
