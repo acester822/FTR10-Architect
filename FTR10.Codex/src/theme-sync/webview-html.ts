@@ -3501,6 +3501,7 @@ function openOverrideModal(idx) {
   document.getElementById('overrideModalBg').classList.add('open');
   drawPicker();
 }
+window.openOverrideModal = openOverrideModal;
 
 function closeOverrideModal(confirm) {
   document.getElementById('overrideModalBg').classList.remove('open');
