@@ -1602,14 +1602,27 @@ window.__FTR10_INIT__ = ${initJson};
     gap: 6px;
     min-width: 0;
   }
-  .v-field-input-wrap input[type="color"] {
+  .v-field-input-wrap .v-color-btn {
     width: 28px; height: 24px;
-    padding: 1px 2px;
+    padding: 0;
     border-radius: 4px;
     border: 1px solid rgba(255,255,255,0.15);
-    background: transparent;
+    background: var(--sw, #888);
     cursor: pointer;
     flex-shrink: 0;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--sw, #888) 40%, transparent);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .v-field-input-wrap .v-color-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sw, #888) 65%, transparent);
+  }
+  /* checkerboard behind translucent swatches */
+  .v-field-input-wrap .v-color-btn {
+    background-image:
+      repeating-conic-gradient(#444 0% 25%, #2a2a2a 0% 50%);
+    background-size: 10px 10px;
+    background-color: var(--sw, #888);
   }
   .v-field-input-wrap input[type="text"] {
     flex: 1;
@@ -2709,7 +2722,7 @@ function buildVarsFieldRow(key, value) {
     const sp = isHexA(value);
     const alpha = sp ? hexAlphaA(value) : 100;
     if (sp) {
-      html += '<input type="color" data-vkey="' + escapeHtmlA(key) + '" data-vrole="picker" value="' + escapeHtmlA(toPickerHexA(value)) + '"/>';
+      html += '<button type="button" class="v-color-btn" data-vkey="' + escapeHtmlA(key) + '" data-vrole="colorbtn" style="--sw:' + escapeHtmlA(toPickerHexA(value)) + '"></button>';
       html += '<div class="v-alpha-wrap" style="--sw:' + escapeHtmlA(toPickerHexA(value)) + '">';
       html += '<input type="range" min="0" max="100" value="' + alpha + '" data-vkey="' + escapeHtmlA(key) + '" data-vrole="alpha"/>';
       html += '<span class="v-alpha-label" data-vkey="' + escapeHtmlA(key) + '" data-vrole="alpha-label">' + alpha + '%</span>';
@@ -2786,19 +2799,20 @@ function scheduleVarsLiveUpdate() {
 }
 
 function wireVarsInputs(content) {
-  content.querySelectorAll('input[data-vrole="picker"]').forEach(picker => {
-    picker.addEventListener('input', () => {
-      const key = picker.dataset.vkey;
-      const alphaEl = content.querySelector('input[data-vrole="alpha"][data-vkey="' + CSS.escape(key) + '"]');
-      const textEl = content.querySelector('input[data-vrole="text"][data-vkey="' + CSS.escape(key) + '"]');
-      const alphaWrap = content.querySelector('.v-alpha-wrap:has(input[data-vkey="' + CSS.escape(key) + '"])');
-      const alpha = alphaEl ? parseInt(alphaEl.value) : 100;
-      const alphaHex = Math.round(alpha/100*255).toString(16).padStart(2,'0');
-      const newVal = alpha === 100 ? picker.value : picker.value + alphaHex;
-      varsState.values[key] = newVal;
-      if (textEl && textEl !== document.activeElement) textEl.value = newVal;
-      if (alphaWrap) alphaWrap.style.setProperty('--sw', picker.value);
-      scheduleVarsLiveUpdate();
+  // Color swatch buttons open the shared color picker (var mode).
+  content.querySelectorAll('button[data-vrole="colorbtn"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.vkey;
+      if (typeof openOverrideModal !== 'function') return;
+      openOverrideModal(key, {
+        isVar: true,
+        onConfirm: (k, hex) => {
+          varsState.values[k] = hex;
+          const textEl = content.querySelector('input[data-vrole="text"][data-vkey="' + CSS.escape(k) + '"]');
+          if (textEl && textEl !== document.activeElement) textEl.value = hex;
+          scheduleVarsLiveUpdate();
+        }
+      });
     });
   });
   content.querySelectorAll('input[data-vrole="alpha"]').forEach(slider => {
@@ -3412,6 +3426,9 @@ window._previewRoleColor = function(idx, hex) {
 // ── color override picker ─────────────────────────────────────────────────────
 let overrideIdx = -1;
 let overrideOriginal = null;
+let overrideMode = 'role';   // 'role' | 'var'
+let overrideVarKey = null;   // var key when mode === 'var'
+let overrideOnConfirm = null; // (varKey, hex) => void when mode === 'var'
 let pickH = 0, pickS = 1, pickV = 1, pickAlpha = 100;
 let slDragging = false, hueDragging = false;
 
@@ -3504,9 +3521,18 @@ function drawPicker() {
   if (window._previewRoleColor) window._previewRoleColor(overrideIdx, _liveHex);
 }
 
-function openOverrideModal(idx) {
-  overrideIdx = idx;
-  overrideOriginal = (window._codexPalette || [])[idx] || '#888888';
+// mode: 'role' (Palette Roles table, idx 0-5) or 'var' (any --ftr10-* var)
+// onConfirm(varKey, hex) is called on ✓ Set; onCancel restores preview.
+function openOverrideModal(arg, opts) {
+  opts = opts || {};
+  const isVar = opts.isVar === true;
+  overrideMode = isVar ? 'var' : 'role';
+  overrideIdx = isVar ? -1 : arg;
+  overrideVarKey = isVar ? arg : null;
+  overrideOnConfirm = isVar ? opts.onConfirm : null;
+  overrideOriginal = isVar
+    ? (varsState.values[arg] || '#888888')
+    : (window._codexPalette || [])[arg] || '#888888';
   // Parse any existing alpha (8-char hex) so re-opening keeps the setting.
   pickAlpha = overrideOriginal.length >= 9 ? Math.round(parseInt(overrideOriginal.slice(7,9), 16) / 255 * 100) : 100;
   const alphaEl = document.getElementById('overrideAlpha');
@@ -3514,7 +3540,8 @@ function openOverrideModal(idx) {
   if (alphaEl) alphaEl.value = String(pickAlpha);
   if (alphaValEl) alphaValEl.textContent = pickAlpha + '%';
   const roleNames = ['Primary','Accent','Support','Contrast','Surface','Depth'];
-  document.getElementById('overrideModalTitle').textContent = \`Override \${roleNames[idx] || 'Color ' + (idx + 1)}\`;
+  const title = isVar ? ('Set ' + arg.replace(/^--ftr10-/, '')) : ('Override ' + (roleNames[arg] || ('Color ' + (arg + 1))));
+  document.getElementById('overrideModalTitle').textContent = title;
   const { h, s, v } = hex2hsv(overrideOriginal.slice(0, 7));
   pickH = h; pickS = s; pickV = v;
   document.getElementById('overrideModalBg').classList.add('open');
@@ -3525,12 +3552,20 @@ window.openOverrideModal = openOverrideModal;
 function closeOverrideModal(confirm) {
   document.getElementById('overrideModalBg').classList.remove('open');
   if (!confirm) {
-    [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.style.background = overrideOriginal; el.style.setProperty('--glow', overrideOriginal + '88'); }
-    });
+    if (overrideMode === 'var') {
+      // Restore preview by re-rendering the var tables (cheap, no liveUpdate).
+      if (window.renderVarsPanel) renderVarsPanel();
+    } else {
+      [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.style.background = overrideOriginal; el.style.setProperty('--glow', overrideOriginal + '88'); }
+      });
+    }
   }
   overrideIdx = -1;
+  overrideMode = 'role';
+  overrideVarKey = null;
+  overrideOnConfirm = null;
 }
 
 function handleSL(e) {
@@ -3570,11 +3605,16 @@ document.getElementById('overrideBtnConfirm').addEventListener('click', () => {
     const aa = Math.round(pickAlpha / 100 * 255).toString(16).padStart(2, '0');
     hex = hex + aa;
   }
-  if (window._codexSetOverride) window._codexSetOverride(overrideIdx, hex);
-  [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('has-override');
-  });
+  if (overrideMode === 'var') {
+    if (overrideOnConfirm) overrideOnConfirm(overrideVarKey, hex);
+    if (typeof renderVarsPanel === 'function') renderVarsPanel();
+  } else {
+    if (window._codexSetOverride) window._codexSetOverride(overrideIdx, hex);
+    [\`lp\${overrideIdx}\`, \`rp\${overrideIdx}\`].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('has-override');
+    });
+  }
   closeOverrideModal(true);
 });
 
