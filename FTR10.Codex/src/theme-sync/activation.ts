@@ -707,6 +707,15 @@ function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string):
       persistThemeConfig({ fast: true, changedKeys });
     }
 
+    if (msg.command === 'saveLayout' && msg.overrides) {
+      // Persist drag/resize positions for movable panels (Edit-Layout mode).
+      // Merge so a concurrent liveUpdate (which preserves layoutOverrides) can't clobber it.
+      state.store.themeConfig.layoutOverrides = Object.assign(
+        {}, state.store.themeConfig.layoutOverrides || {}, msg.overrides
+      );
+      persistThemeConfig();
+    }
+
     if (msg.command === 'saveSession' && Array.isArray(msg.colors) && msg.colors.length >= 6) {
       // If sessionId is provided, overwrite that card; otherwise create a new one
       const id: string = msg.sessionId || Date.now().toString(36);
