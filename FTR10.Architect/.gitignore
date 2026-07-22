@@ -1,0 +1,90 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+.pnp/
+
+# Build outputs
+out/
+dist/
+build/
+*.tsbuildinfo
+.crossnote/
+crossnote/out/
+crossnote/dependencies/
+crossnote/webview/
+
+# VS Code extension packaging
+*.vsix
+
+# VS Code test & caches
+.vscode-test/
+.vscode-test-web/
+.vscode/.ropeproject/
+.vscode/ipch/
+*.code-workspace~
+
+# Env / direnv / tooling
+.direnv/
+.env
+.env.local
+.env.*.local
+.envrc
+mume/
+.cache/
+.tmp/
+temp/
+.tmp
+.parcel-cache/
+.eslintcache
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+yarn-error.log
+pnpm-debug.log*
+npm-debug.log*
+lerna-debug.log*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.orig
+*.bak
+*.tgz
+*.tar.gz
+
+# Generated theme file – regenerated at runtime by theme-sync.ts (writeThemeTokenColors).
+# NOTE: the file shipped in the package is declared in package.json contributes.themes
+# and must be packaged, so we do NOT ignore it here. (The runtime profile override of the
+# same filename lives under ~/.ftr10 and is covered by the repo-root .gitignore.)
+
+# Throwaway one-off experiment scripts in repo root
+test.js
+test2.js
+test3.js
+test4.js
+test_H2.js
+test_script_syntax.js
+fix-sc.js
+fix-sc2.js
+patch_red_bg.js
+test*.js
+fix-*.js
+patch*.js
+
+# Legacy / investigation artifacts
+src_old/
+ARCHITECTURE_INVESTIGATION.md
+
+# Husky internal cache (hooks themselves are tracked, _/ is generated)
+.husky/_/
+
+# AI / copilot artifacts
+.copilotignore

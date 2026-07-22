@@ -1,0 +1,1004 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as chokidar from 'chokidar';
+import type { ThemeConfig, ArchitectSession, RawThemeJson } from './types';
+import { SIMPLE_GROUPS, THEME_PRESETS, DEFAULT_VALUES } from './constants';
+import { presetToBaseSession, deriveCodexPreset, computeSessionVarDiff } from './presets';
+import { migrateConfig, buildDefaultConfig, flattenConfig, regenerateColorsCss, updateAllCssFiles, writeColorsCss, getPresetBgMode, getBasePresetValues, applyPreset } from './config';
+import { sourceP10kInTerminals, writeThemeTokenColors, writeTokenColors, writeTerminalColors } from './css';
+import { writeVarsJson, generateShim } from './shim';
+import { buildSessionCardsHtml, getSidebarHtml, getCodexHtml } from './webview-html';
+import * as state from './state';
+import { isPanelAlive } from './state';
+
+// ── Runtime tracer ────────────────────────────────────────────────────────
+// Appends compact JSONL events to ~/.ftr10/logs/ftr10-trace.log so we can see
+// EXACTLY what fires as the user navigates the extension (effect switches,
+// config persists, shim regens, live updates, card applies). The shim and the
+// webviews forward their own events here via the 'trace' message, so this file
+// is the single unified timeline. Toggle with the FTR10_TRACE env var or the
+// ftr10.trace setting; defaults ON (cheap — one appendFileSync per event).
+let __traceEnabled = true;
+let __tracePath = '';
+let __traceSeq = 0;
+function __traceInit(profilePath: string): void {
+  try {
+    const logDir = path.join(profilePath, 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    __tracePath = path.join(logDir, 'ftr10-trace.log');
+    // Rotate if the log is over ~2 MB so it never grows unbounded.
+    try {
+      if (fs.existsSync(__tracePath) && fs.statSync(__tracePath).size > 2 * 1024 * 1024) {
+        fs.renameSync(__tracePath, __tracePath + '.1');
+      }
+    } catch (_e) { /* ignore */ }
+    trace('trace-init', { pid: process.pid, when: new Date().toISOString() });
+  } catch (_e) { /* tracing must never break the extension */ }
+}
+export function trace(event: string, data?: any, source = 'host'): void {
+  if (!__traceEnabled || !__tracePath) return;
+  try {
+    const line = JSON.stringify({ t: Date.now(), seq: ++__traceSeq, src: source, ev: event, ...(data ? { d: data } : {}) });
+    fs.appendFileSync(__tracePath, line + '\n');
+  } catch (_e) { /* never throw from tracing */ }
+}
+function __timed<T>(event: string, fn: () => T, data?: any): T {
+  const start = Date.now();
+  try {
+    return fn();
+  } finally {
+    trace(event, { ...(data || {}), ms: Date.now() - start });
+  }
+}
+
+export function ensureBaseSessions(): boolean {
+  let changed = false;
+  // Create a base card for each static preset if not already present
+  for (let idx = 0; idx < THEME_PRESETS.length; idx++) {
+    const preset = THEME_PRESETS[idx];
+    const baseId = `base-${preset.id}`;
+    if (state.store.themeConfig.architectSessions[baseId]) continue;
+    const session = presetToBaseSession(preset);
+    // Stagger createdAt so original preset order is preserved (oldest first)
+    session.createdAt = Date.now() - (THEME_PRESETS.length - idx) * 10000;
+    session.updatedAt = session.createdAt;
+    state.store.themeConfig.architectSessions[baseId] = session;
+    changed = true;
+  }
+  return changed;
+}
+
+function registerLivePanel(p: vscode.WebviewPanel | undefined): void {
+  if (!p) return;
+  if (state.store.livePanels.indexOf(p) === -1) state.store.livePanels.push(p);
+}
+function unregisterLivePanel(p: vscode.WebviewPanel | undefined): void {
+  const i = p ? state.store.livePanels.indexOf(p) : -1;
+  if (i !== -1) state.store.livePanels.splice(i, 1);
+}
+
+export function activateThemeSync(context: vscode.ExtensionContext): void {
+  const configPath = vscode.workspace.getConfiguration('themeSync').get<string>('state.store.profilePath', '');
+  state.store.profilePath = configPath || path.join(os.homedir(), '.ftr10');
+  state.store.extensionRoot = context.extensionUri.fsPath;
+  fs.mkdirSync(state.store.profilePath, { recursive: true });
+  // Read trace toggle (env wins, then setting; default on) and init the log.
+  try {
+    const envT = process.env.FTR10_TRACE;
+    const cfgT = vscode.workspace.getConfiguration('ftr10').get<boolean>('trace', true);
+    __traceEnabled = envT != null ? (envT !== '0' && envT.toLowerCase() !== 'false') : cfgT;
+  } catch (_e) { /* keep default */ }
+  __traceInit(state.store.profilePath);
+  trace('activate', { profilePath: state.store.profilePath });
+
+  const themeJsonPath = path.join(state.store.profilePath, 'theme.json');
+  if (!fs.existsSync(themeJsonPath)) {
+    const defaults = buildDefaultConfig();
+    fs.writeFileSync(themeJsonPath, JSON.stringify(defaults, null, 2));
+    state.store.themeConfig = flattenConfig(defaults);
+  } else {
+    const raw = JSON.parse(fs.readFileSync(themeJsonPath, 'utf8')) as RawThemeJson;
+    state.store.themeConfig = flattenConfig(raw);
+    migrateConfig();
+  }
+
+  // Seed Base session cards from static presets (issue #4)
+  try {
+    if (ensureBaseSessions()) {
+      // Persist the newly seeded base sessions
+      persistThemeConfig();
+    }
+  } catch (e) { console.error('[FTR10] ensureBaseSessions failed', e); }
+
+  // One-time repair: regenerate colors.css to fix previous corruption (double ;;, data URI handling)
+  try {
+    regenerateColorsCss(state.store.themeConfig.values);
+    // Also clean other css files of double semicolons via robust updater
+    updateAllCssFiles(state.store.themeConfig.values, ['--ftr10-bg-image-panels', '--ftr10-highlight']);
+  } catch {}
+
+  // Register sidebar webview provider
+  state.store.sidebarProvider = new ThemeSidebarProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('themeSync.sidebar', state.store.sidebarProvider)
+  );
+
+  const patchCmd = vscode.commands.registerCommand('themeSync.patchWorkbench', () => patchWorkbench(state.store.profilePath));
+
+  const applyPresetCmd = vscode.commands.registerCommand('themeSync.applyPreset', (presetId: string) => {
+    applyPreset(presetId);
+  });
+
+  // Auto-refresh the workbench patch (pre-paint critical CSS + shim tag) on every
+  // activation, so the anti-flash pre-paint <style> stays in sync with the current
+  // --ftr10-bg without requiring the user to run the command manually. Silent to
+  // avoid popups, but log failures to the trace so they're debuggable.
+  patchWorkbench(state.store.profilePath, true).catch((err) => {
+    try { require('vscode').window.showErrorMessage?.('patchWorkbench auto failed: ' + (err?.message || err)); } catch (_e) {}
+  });
+
+  state.store.watcher = chokidar.watch(themeJsonPath, { ignoreInitial: true });
+  state.store.watcher.on('change', () => {
+    try {
+      const raw = JSON.parse(fs.readFileSync(themeJsonPath, 'utf8')) as RawThemeJson;
+      state.store.themeConfig = flattenConfig(raw);
+      generateShim(state.store.profilePath, state.store.themeConfig);
+      updateWebviewUI();
+      state.store.sidebarProvider?.syncActivePreset();
+    } catch (err) {
+      console.error('Error watching theme.json:', err);
+    }
+  });
+
+  context.subscriptions.push({ dispose: () => state.store.watcher?.close() });
+  generateShim(state.store.profilePath, state.store.themeConfig);
+  writeVarsJson(state.store.profilePath, state.store.themeConfig);
+}
+
+export function deactivateThemeSync(): void {
+  state.store.watcher?.close();
+  state.store.panel?.dispose();
+}
+
+export class ThemeSidebarProvider implements vscode.WebviewViewProvider {
+  private _view?: vscode.WebviewView;
+  private _context: vscode.ExtensionContext;
+
+  constructor(context: vscode.ExtensionContext) {
+    this._context = context;
+  }
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this._view = webviewView;
+    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.html = getSidebarHtml(state.store.themeConfig.activePreset, state.store.themeConfig.values['--ftr10-accent-1'], state.store.themeConfig.values);
+
+    webviewView.onDidChangeVisibility(() => {
+      if (!webviewView.visible && state.store.CodexPanel) {
+        state.store.CodexPanel.dispose();
+      }
+    }, undefined, this._context.subscriptions);
+
+    webviewView.webview.onDidReceiveMessage((msg: any) => {
+      if (msg.command === 'applyCard') {
+        applyArchitectSession(msg.sessionId);
+      }
+      if (msg.command === 'applyPreset') {
+        applyPreset(msg.presetId);
+      }
+      if (msg.command === 'editCard') {
+        createCodexPanel(this._context, msg.sessionId);
+      }
+      if (msg.command === 'deleteCard') {
+        const id: string = msg.sessionId;
+        const sess = state.store.themeConfig.architectSessions[id];
+        if (sess?.isBase) {
+          vscode.window.showWarningMessage('Base cards cannot be deleted — use Reset ↺ to restore defaults.');
+          return;
+        }
+        delete state.store.themeConfig.architectSessions[id];
+        persistThemeConfig();
+        this.syncSessions();
+      }
+      if (msg.command === 'toggleBackgroundMode') {
+        handleMessage(msg);
+      }
+      if (msg.command === 'openCodex') {
+        createCodexPanel(this._context);
+      }
+    }, undefined, this._context.subscriptions);
+  }
+
+  syncSessions(): void {
+    if (this._view) {
+      const cards = buildSessionCardsHtml();
+      this._view.webview.postMessage({
+        command: 'syncSessions',
+        defaultCardsHtml: cards.defaults,
+        sessionsHtml: cards.sessions,
+        accentColor: state.store.themeConfig.values['--ftr10-accent-1'] || ''
+      });
+      // Also re-sync active state so the badge reflects any preset changes
+      this._view.webview.postMessage({
+        command: 'syncActive',
+        activePreset: state.store.themeConfig.activePreset || '',
+        accentColor: state.store.themeConfig.values['--ftr10-accent-1'] || ''
+      });
+    }
+  }
+
+  syncActivePreset(): void {
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: 'syncActive',
+        activePreset: state.store.themeConfig.activePreset || '',
+        accentColor: state.store.themeConfig.values['--ftr10-accent-1'] || ''
+      });
+    }
+  }
+
+  syncBgModes(): void {
+    if (this._view) {
+      const bgModeMap: Record<string, string> = {};
+      for (const s of Object.values(state.store.themeConfig.architectSessions)) {
+        const presetId = `arch-${s.id}`;
+        bgModeMap[presetId] = getPresetBgMode(presetId);
+      }
+      this._view.webview.postMessage({ command: 'syncBgModes', bgModeMap });
+    }
+  }
+
+  pushVars(values: Record<string, string>): void {
+    if (this._view) {
+      this._view.webview.postMessage({ command: 'relayVars', cssVars: values });
+    }
+  }
+
+  pushCodexColors(colors: string[]): void {
+    if (this._view) {
+      this._view.webview.postMessage({ command: 'CodexColors', colors });
+    }
+  }
+}
+
+function handleMessage(msg: any): void {
+  if (msg.command === 'getConfig') {
+    if (state.store.panel) {
+      const bgModeMap: Record<string, string> = {};
+      for (const p of THEME_PRESETS) {
+        bgModeMap[p.id] = getPresetBgMode(p.id);
+      }
+      state.store.panel.webview.postMessage({
+        command: 'sync',
+        config: state.store.themeConfig,
+        simpleGroups: SIMPLE_GROUPS,
+        presets: THEME_PRESETS,
+        bgModeMap
+      });
+      setTimeout(() => {
+        if (state.store.panel) {
+          state.store.panel.webview.postMessage({
+            command: 'sync',
+            config: state.store.themeConfig,
+            simpleGroups: SIMPLE_GROUPS,
+            presets: THEME_PRESETS,
+            bgModeMap
+          });
+        }
+      }, 500);
+    }
+    return;
+  }
+
+  if (msg.command === 'toggleBackgroundMode') {
+    const presetId: string = msg.presetId || state.store.themeConfig.activePreset || '';
+    if (!presetId) return;
+    const current = getPresetBgMode(presetId);
+    const next: 'effects' | 'solid' = current === 'effects' ? 'solid' : 'effects';
+    state.store.themeConfig.presetBackgroundMode[presetId] = next;
+    if (presetId === state.store.themeConfig.activePreset) {
+      applyPreset(presetId);
+    } else {
+      persistThemeConfig();
+    }
+    if (state.store.panel) {
+      const bgModeMap: Record<string, string> = {};
+      for (const p of THEME_PRESETS) { bgModeMap[p.id] = getPresetBgMode(p.id); }
+      state.store.panel.webview.postMessage({ command: 'syncBgMode', bgModeMap, activePreset: state.store.themeConfig.activePreset });
+    }
+    state.store.sidebarProvider?.syncBgModes();
+    return;
+  }
+
+  if (msg.command === 'liveUpdate') {
+    const prevValues = state.store.themeConfig.values;
+    const newValues = msg.values || state.store.themeConfig.values;
+    const presetId = msg.activePreset ?? state.store.themeConfig.activePreset;
+    state.store.themeConfig = {
+      sections: msg.sections || state.store.themeConfig.sections,
+      values: newValues,
+      cssImports: msg.cssImports || state.store.themeConfig.cssImports,
+      customCss: msg.customCss ?? state.store.themeConfig.customCss,
+      activePreset: presetId,
+      presetCustomizations: state.store.themeConfig.presetCustomizations,
+      presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
+      architectSessions: state.store.themeConfig.architectSessions,
+      layoutOverrides: state.store.themeConfig.layoutOverrides
+    };
+    if (presetId) {
+      const baseValues = getBasePresetValues(presetId);
+      const diff: Record<string, string> = {};
+      for (const [key, val] of Object.entries(newValues)) {
+        if (baseValues[key] !== val) { diff[key] = val as string; }
+      }
+      if (Object.keys(diff).length > 0) {
+        state.store.themeConfig.presetCustomizations[presetId] = diff;
+      } else {
+        delete state.store.themeConfig.presetCustomizations[presetId];
+      }
+    }
+    // compute changed keys for surgical CSS update (major lag fix + data URI support)
+    const changedKeys: string[] = [];
+    for (const k of Object.keys(newValues)) {
+      if (prevValues[k] !== newValues[k]) changedKeys.push(k);
+    }
+    try {
+      persistThemeConfig({ fast: true, changedKeys });
+    } catch (e: any) {
+      const msgTxt = (e && e.message) ? e.message : String(e);
+      console.error('[FTR10] liveUpdate persistThemeConfig failed:', e);
+      vscode.window.showErrorMessage('FTR10 live-update failed: ' + msgTxt);
+    }
+    state.store.sidebarProvider?.syncActivePreset();
+    return;
+  }
+
+  if (msg.command === 'apply') {
+    const newValues = msg.values || state.store.themeConfig.values;
+    const presetId = msg.activePreset ?? state.store.themeConfig.activePreset;
+    state.store.themeConfig = {
+      sections: msg.sections || state.store.themeConfig.sections,
+      values: newValues,
+      cssImports: msg.cssImports || state.store.themeConfig.cssImports,
+      customCss: msg.customCss ?? state.store.themeConfig.customCss,
+      activePreset: presetId,
+      presetCustomizations: state.store.themeConfig.presetCustomizations,
+      presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
+      architectSessions: state.store.themeConfig.architectSessions,
+      layoutOverrides: state.store.themeConfig.layoutOverrides
+    };
+
+    // Diff current values against the base preset to find user customizations
+    if (presetId) {
+      const baseValues = getBasePresetValues(presetId);
+      const diff: Record<string, string> = {};
+      for (const [key, val] of Object.entries(newValues)) {
+        if (baseValues[key] !== val) {
+          diff[key] = val as string;
+        }
+      }
+      if (Object.keys(diff).length > 0) {
+        state.store.themeConfig.presetCustomizations[presetId] = diff;
+      } else {
+        delete state.store.themeConfig.presetCustomizations[presetId];
+      }
+    }
+
+    persistThemeConfig();
+    state.store.sidebarProvider?.syncActivePreset();
+    sourceP10kInTerminals();
+    vscode.window.showInformationMessage('Theme applied.');
+    return;
+  }
+
+  if (msg.command === 'saveLayout' && msg.overrides) {
+    // Persist drag positions for movable panels (Edit-Layout mode).
+    // Merge so a concurrent liveUpdate (which preserves layoutOverrides) can't clobber it.
+    state.store.themeConfig.layoutOverrides = Object.assign(
+      {}, state.store.themeConfig.layoutOverrides || {}, msg.overrides
+    );
+    persistThemeConfig();
+    return;
+  }
+
+  if (msg.command === 'reset') {
+    const presetId = state.store.themeConfig.activePreset;
+    if (presetId) {
+      // Clear customizations for the active preset, re-apply it fresh
+      delete state.store.themeConfig.presetCustomizations[presetId];
+      const baseValues = getBasePresetValues(presetId);
+      state.store.themeConfig.values = baseValues;
+    } else {
+      // No active preset — full reset to defaults
+      const defaults = buildDefaultConfig();
+      const fresh = flattenConfig(defaults);
+      state.store.themeConfig.sections = fresh.sections;
+      state.store.themeConfig.values = fresh.values;
+      state.store.themeConfig.cssImports = fresh.cssImports;
+      state.store.themeConfig.customCss = fresh.customCss;
+      state.store.themeConfig.activePreset = fresh.activePreset;
+    }
+    persistThemeConfig();
+    state.store.sidebarProvider?.syncActivePreset();
+    const presetName = THEME_PRESETS.find(p => p.id === presetId)?.name || 'defaults';
+    vscode.window.showInformationMessage(`Theme reset to ${presetName} defaults.`);
+    return;
+  }
+
+  if (msg.command === 'applyPreset') {
+    applyPreset(msg.presetId);
+    return;
+  }
+}
+
+export function persistThemeConfig(opts?: { fast?: boolean; changedKeys?: string[] }): void {
+  if (state.store._togglingTheme) return;
+  const __pStart = Date.now();
+  const isFast = !!opts?.fast;
+  trace('persist:start', { fast: isFast, changedKeys: opts?.changedKeys });
+  // Sanitize background-image values. Backgrounds are served from the workbench
+  // origin via a symlink (~/.ftr10/backgrounds -> workbench/backgrounds) and the
+  // shim resolves url("backgrounds/<file>") to the absolute workbench URL. So:
+  //   - Normalize any url("../backgrounds/<file>") (old/pre-fix format) down to
+  //     url("backgrounds/<file>") so previously-saved sessions keep their image.
+  //   - Any OTHER relative or file:// URL cannot resolve → force 'none'.
+  const values: Record<string, string> = {};
+  for (const [k, v] of Object.entries(state.store.themeConfig.values)) {
+    let val = String(v);
+    if (k === '--ftr10-bg-image' || k === '--ftr10-bg-image-panels') {
+      const bgIdx = val.indexOf('backgrounds/');
+      if (bgIdx !== -1) {
+        // Rewrite to the clean symlinked form regardless of any ../ prefix.
+        const start = bgIdx + 'backgrounds/'.length;
+        let end = val.indexOf('"', start);
+        if (end === -1) end = val.indexOf("'", start);
+        if (end === -1) end = val.indexOf(')', start);
+        if (end === -1) end = val.length;
+        const fname = val.substring(start, end).trim();
+        if (fname) val = 'url("backgrounds/' + fname + '")';
+      } else if (/^\s*url\(["']?\s*(\.\.\/|\.\/|\/|file:\/\/)/i.test(val)) {
+        // A relative/absolute/file URL that is NOT a backgrounds/ path → dead. 
+        val = 'none';
+      }
+    }
+    values[k] = val;
+  }
+  const themeJsonPath = path.join(state.store.profilePath, 'theme.json');
+  fs.writeFileSync(themeJsonPath, JSON.stringify({
+    ftr10Variables: { sections: state.store.themeConfig.sections, values },
+    cssImports: state.store.themeConfig.cssImports,
+    customCss: state.store.themeConfig.customCss,
+    activePreset: state.store.themeConfig.activePreset,
+    presetCustomizations: state.store.themeConfig.presetCustomizations,
+    presetBackgroundMode: state.store.themeConfig.presetBackgroundMode,
+    architectSessions: state.store.themeConfig.architectSessions,
+    layoutOverrides: state.store.themeConfig.layoutOverrides,
+    lastModified: Date.now()
+  }, null, 2));
+  // Fast path: only update css files, vars.json, shim.js and live relay — skip heavy token writes
+  if (isFast) {
+    let s = Date.now();
+    writeColorsCss(values, opts?.changedKeys); trace('persist:writeColorsCss', { ms: Date.now() - s }); s = Date.now();
+    writeVarsJson(state.store.profilePath, { ...state.store.themeConfig, values }); trace('persist:writeVarsJson', { ms: Date.now() - s }); s = Date.now();
+    // The shim only contains static CSS/fonts/thpace — it does NOT depend on per-card
+    // vars (those arrive via vars.json). Regenerating it on every live color/card switch
+    // rewrites 300KB and forces the workbench to re-fetch+re-apply — the main source of
+    // the "switch cards → hang + lag" symptom. Only regenerate when something the shim
+    // actually embeds changed: a font var, or the cssImports list.
+    const fontChanged = (opts?.changedKeys || []).some(k => k.endsWith('-font'));
+    const importsChanged = JSON.stringify(state.store.themeConfig.cssImports) !== JSON.stringify(({ ...state.store.themeConfig, values }).cssImports);
+    if (fontChanged || importsChanged) {
+      generateShim(state.store.profilePath, { ...state.store.themeConfig, values }); trace('persist:generateShim', { ms: Date.now() - s }); s = Date.now();
+    } else {
+      trace('persist:generateShim', { ms: 0, skipped: true });
+    }
+    pushVarsLive(values); trace('persist:pushVarsLive', { ms: Date.now() - s }); s = Date.now();
+    // still update editor webview UI but not full sync
+    updateWebviewUI(); trace('persist:updateWebviewUI', { ms: Date.now() - s });
+    trace('persist:done', { fast: true, totalMs: Date.now() - __pStart });
+    return;
+  }
+  writeColorsCss(values, opts?.changedKeys);
+  writeVarsJson(state.store.profilePath, { ...state.store.themeConfig, values });
+  // Only regenerate the shim when something it embeds changed (font var or cssImports).
+  // Card/preset switches go through this full path and would otherwise rewrite the
+  // 300KB shim on every switch — the main source of the "switch cards → hang" symptom.
+  const _fontChangedFull = (opts?.changedKeys || Object.keys(values)).some(k => k.endsWith('-font'));
+  const _importsChangedFull = JSON.stringify(state.store.themeConfig.cssImports) !== JSON.stringify(({ ...state.store.themeConfig, values }).cssImports);
+  if (_fontChangedFull || _importsChangedFull) {
+    generateShim(state.store.profilePath, { ...state.store.themeConfig, values });
+  }
+  writeTerminalColors(state.store.profilePath, state.store.themeConfig.values);
+  // VS Code syntax color syncing was previously disabled due to broken highlight behavior.
+  // User requested re-enabling full token synchronization (theme JSON + settings toggle).
+  try {
+    writeThemeTokenColors(state.store.themeConfig.values);
+  } catch (e) {
+    console.error('writeThemeTokenColors failed:', e);
+  }
+  try {
+    writeTokenColors(state.store.themeConfig.values);
+  } catch (e) {
+    console.error('writeTokenColors failed:', e);
+  }
+  pushVarsLive(state.store.themeConfig.values);
+  updateWebviewUI();
+}
+
+export function pushVarsLive(values: Record<string, string>): void {
+  const msg = { command: 'relayVars', cssVars: values };
+  // Relay to every currently-open webview panel (Theme Editor AND Architect).
+  // The webview scripts forward relayVars onto BroadcastChannel('theme-sync'),
+  // which the injected shim listens on and applies live — no dependency on the
+  // workbench's fetch() being able to reach vars.json across window origins.
+  for (const vw of state.store.livePanels) {
+    try { vw.webview.postMessage(msg); } catch (_) {}
+  }
+  state.store.sidebarProvider?.pushVars(values);
+}
+
+function updateWebviewUI(): void {
+  if (state.store.panel) {
+    const bgModeMap: Record<string, string> = {};
+    for (const p of THEME_PRESETS) { bgModeMap[p.id] = getPresetBgMode(p.id); }
+    // Background gallery: send webview-uris to the symlinked backgrounds dir.
+    // The webview's localResourceRoots include ~/.ftr10, so asWebviewUri()
+    // resolves to a reachable resource URL — no base64 needed (avoids encoding
+    // every background on every sync, which froze the panel).
+    const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+    let bgImages: { name: string; uri: string }[] = [];
+    try {
+      const wv = state.store.panel?.webview;
+      if (wv && fs.existsSync(bgDir)) {
+        bgImages = fs.readdirSync(bgDir)
+          .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+          .sort((a, b) => a.localeCompare(b))
+          .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
+      }
+    } catch { /* ignore — gallery simply empty */ }
+    state.store.panel.webview.postMessage({
+      command: 'sync',
+      config: state.store.themeConfig,
+      simpleGroups: SIMPLE_GROUPS,
+      presets: THEME_PRESETS,
+      bgModeMap,
+      bgImages
+    });
+  }
+}
+
+function applyArchitectSession(sessionId: string): void {
+  const session = state.store.themeConfig.architectSessions[sessionId];
+  if (!session) return;
+  const preset = deriveCodexPreset(session);
+  const existingIdx = THEME_PRESETS.findIndex(p => p.id === preset.id);
+  if (existingIdx >= 0) { THEME_PRESETS[existingIdx] = preset; }
+  else { THEME_PRESETS.push(preset); }
+  applyPreset(preset.id);
+  state.store.sidebarProvider?.syncSessions();
+  // If Architect panel is open, switch it to this session
+  if (isPanelAlive(state.store.CodexPanel)) {
+    state.store.CodexPanel!.webview.postMessage({ command: 'loadSession', session, derivedValues: state.store.themeConfig.values });
+  }
+}
+
+function createCodexPanel(context: vscode.ExtensionContext, sessionId?: string): void {
+  const existing = state.store.CodexPanel;
+  if (existing) {
+    try {
+      // A panel reference can be "alive" (isDisposed === false) while its inner
+      // webview is already torn down; reveal() then throws "Webview is disposed".
+      // Probe it directly and fall through to a clean recreate on ANY failure.
+      existing.reveal(vscode.ViewColumn.One);
+      if (sessionId) {
+        const session = state.store.themeConfig.architectSessions[sessionId];
+        if (session) {
+          const derivedValues = state.store.themeConfig.activePreset === `arch-${sessionId}` ? state.store.themeConfig.values : undefined;
+          existing.webview.postMessage({ command: 'loadSession', session, derivedValues });
+        }
+      }
+      return;
+    } catch (_e) {
+      // Stale/disposed panel — clear the reference so we recreate a fresh one below.
+      state.store.CodexPanel = undefined;
+    }
+  }
+  state.store.CodexPanel = vscode.window.createWebviewPanel(
+    'state.store.CodexPanel', 'FTR10 Architect', vscode.ViewColumn.One,
+    { enableScripts: true, retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.file(path.join(process.env.HOME || require('os').homedir(), '.ftr10'))] }
+  );
+
+  // Gather initial data at panel-creation time and bake it directly into the HTML.
+  // This mirrors the pattern used by getSidebarHtml() and ensures the webview renders
+  // real config/palette data on the very first paint — before any postMessage round-trip.
+  let _initBgImages: { name: string; uri: string }[] = [];
+  try {
+    const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+    const _wv = state.store.CodexPanel?.webview;
+    if (_wv && fs.existsSync(bgDir)) {
+      _initBgImages = fs.readdirSync(bgDir)
+        .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, 20)
+        .map(f => ({ name: f, uri: _wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
+    }
+  } catch (e) { console.error('FTR10: Failed to read background images for Architect panel:', e); }
+  // sections: the webview hydration only reads config.sections; sanitizeConfigForWebview
+  // would deep-clone the entire ThemeConfig (incl. architectSessions) just for this,
+  // so pass sections directly — they contain no sensitive data.
+  const _initValues = sanitizeForWebview(state.store.themeConfig.values);
+  let _initSession: any = undefined;
+  let _initDerivedValues: Record<string, any> | undefined = undefined;
+  if (sessionId) {
+    const _sess = state.store.themeConfig.architectSessions[sessionId];
+    if (_sess) {
+      _initSession = sanitizeSession(_sess);
+      _initDerivedValues = sanitizeForWebview(
+        state.store.themeConfig.activePreset === `arch-${sessionId}` ? state.store.themeConfig.values : {}
+      );
+    }
+  }
+  state.store.CodexPanel.webview.html = getCodexHtml({
+    config: { sections: state.store.themeConfig.sections, layoutOverrides: state.store.themeConfig.layoutOverrides || {} },
+    simpleGroups: SIMPLE_GROUPS,
+    activePreset: state.store.themeConfig.activePreset,
+    values: _initValues,
+    bgImages: _initBgImages,
+    session: _initSession,
+    derivedValues: _initDerivedValues
+  });
+
+  const _codexRef = state.store.CodexPanel;
+  state.store.CodexPanel.onDidDispose(() => { (_codexRef as unknown as { __ftr10Disposed?: boolean }).__ftr10Disposed = true; unregisterLivePanel(_codexRef); state.store.CodexPanel = undefined; }, null, context.subscriptions);
+  registerLivePanel(state.store.CodexPanel);
+
+  // Safety-net fallback: re-push architectConfig ~350 ms after creation in case the
+  // extension host restarted (retainContextWhenHidden causes the webview to persist
+  // but the in-HTML baked data may be stale after a restart).  This is idempotent —
+  // the webview merges the incoming values on top of what it already has.
+  setTimeout(() => {
+    try {
+      if (!isPanelAlive(state.store.CodexPanel)) { return; }
+      let bgImages: { name: string; uri: string }[] = [];
+      try {
+        const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+        const wv = state.store.CodexPanel?.webview;
+        if (wv && fs.existsSync(bgDir)) {
+          bgImages = fs.readdirSync(bgDir)
+            .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, 20)
+            .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
+        }
+      } catch {}
+      const safeConfig = sanitizeConfigForWebview(state.store.themeConfig);
+      const safeVals = sanitizeForWebview(state.store.themeConfig.values);
+      state.store.CodexPanel!.webview.postMessage({ command: 'architectConfig', config: safeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: state.store.themeConfig.activePreset, values: safeVals, bgImages });
+    } catch {}
+  }, 350);
+
+  state.store.CodexPanel!.webview.onDidReceiveMessage((msg: any) => {
+    // Forwarded trace events from the Architect webview / shim relay.
+    if (msg.command === 'trace') {
+      trace(msg.event || 'webview-event', msg.data, msg.source || 'architect');
+      return;
+    }
+    if (msg.command !== 'CodexUpdate') { trace('msg:' + msg.command, undefined, 'architect'); }
+    if (msg.command === 'CodexUpdate' && Array.isArray(msg.colors)) {
+      state.store.sidebarProvider?.pushCodexColors(msg.colors);
+    }
+
+    if (msg.command === 'getConfig') {
+      const bgDir = path.join((process.env.HOME || require('os').homedir()), '.ftr10', 'backgrounds');
+      // Send webview-uris to the symlinked backgrounds (no base64). The
+      // Architect webview's localResourceRoots include ~/.ftr10, so
+      // asWebviewUri() resolves to a reachable resource URL. This avoids
+      // base64-encoding every background on every getConfig (perf/freeze).
+      let bgImages: { name: string; uri: string }[] = [];
+      try {
+        const wv = state.store.CodexPanel?.webview;
+        if (wv && fs.existsSync(bgDir)) {
+          bgImages = fs.readdirSync(bgDir)
+            .filter(f => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f))
+            .sort((a, b) => a.localeCompare(b))
+            .map(f => ({ name: f, uri: wv.asWebviewUri(vscode.Uri.file(path.join(bgDir, f))).toString() }));
+        }
+      } catch { /* ignore */ }
+      state.store.CodexPanel?.webview.postMessage({ command: 'architectConfig', config: state.store.themeConfig, simpleGroups: SIMPLE_GROUPS, activePreset: state.store.themeConfig.activePreset, values: state.store.themeConfig.values, bgImages });
+    }
+
+    if (msg.command === 'liveUpdate' && msg.values) {
+      const changedKeys = Object.keys(msg.values);
+      state.store.themeConfig.values = { ...state.store.themeConfig.values, ...msg.values };
+      persistThemeConfig({ fast: true, changedKeys });
+    }
+
+    if (msg.command === 'saveLayout' && msg.overrides) {
+      // Persist drag/resize positions for movable panels (Edit-Layout mode).
+      // Merge so a concurrent liveUpdate (which preserves layoutOverrides) can't clobber it.
+      state.store.themeConfig.layoutOverrides = Object.assign(
+        {}, state.store.themeConfig.layoutOverrides || {}, msg.overrides
+      );
+      persistThemeConfig();
+    }
+
+    if (msg.command === 'saveSession' && Array.isArray(msg.colors) && msg.colors.length >= 6) {
+      // If sessionId is provided, overwrite that card; otherwise create a new one
+      const id: string = msg.sessionId || Date.now().toString(36);
+      const existing = state.store.themeConfig.architectSessions[id];
+      const session: ArchitectSession = {
+        id,
+        name: (msg.name || 'Untitled').slice(0, 40),
+        baseHue: typeof msg.baseHue === 'number' ? msg.baseHue : 0,
+        harmony: msg.harmony || 'analogous',
+        swatchOverrides: msg.swatchOverrides || {},
+        savedColors: msg.colors.slice(0, 6),
+        bgEffect: msg.bgEffect || existing?.bgEffect || 'nebula',
+        thpaceEnabled: msg.thpaceEnabled || existing?.thpaceEnabled || 'true',
+        // Persist extra Vars-panel edits as a diff vs. the palette-derived set.
+        // msg.vars is the full live varsState.values; the diff is what changed.
+        varOverrides: computeSessionVarDiff(
+          {
+            id, name: (msg.name || 'Untitled').slice(0, 40),
+            baseHue: typeof msg.baseHue === 'number' ? msg.baseHue : 0,
+            harmony: msg.harmony || 'analogous',
+            swatchOverrides: msg.swatchOverrides || {},
+            savedColors: msg.colors.slice(0, 6),
+            bgEffect: msg.bgEffect || existing?.bgEffect || 'nebula',
+            thpaceEnabled: msg.thpaceEnabled || existing?.thpaceEnabled || 'true',
+            createdAt: existing?.createdAt ?? Date.now(),
+            updatedAt: Date.now()
+          },
+          msg.vars || state.store.themeConfig.values
+        ),
+        createdAt: existing?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+        isBase: false, // Saving a changed default (base) card promotes it to a regular session card
+        basePresetId: existing?.isBase ? undefined : existing?.basePresetId
+      };
+      state.store.themeConfig.architectSessions[id] = session;
+      persistThemeConfig();
+      state.store.sidebarProvider?.syncSessions();
+      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name, session });
+      vscode.window.showInformationMessage(`Session "${session.name}" saved.`);
+    }
+
+    if (msg.command === 'applySession' && Array.isArray(msg.colors) && msg.colors.length >= 6) {
+      const id: string = msg.sessionId || Date.now().toString(36);
+      const existing = state.store.themeConfig.architectSessions[id];
+      const varDiff = computeSessionVarDiff(
+        {
+          id, name: (msg.name || 'Untitled').slice(0, 40),
+          baseHue: typeof msg.baseHue === 'number' ? msg.baseHue : 0,
+          harmony: msg.harmony || 'analogous',
+          swatchOverrides: msg.swatchOverrides || {},
+          savedColors: msg.colors.slice(0, 6),
+          bgEffect: msg.bgEffect || existing?.bgEffect || 'nebula',
+          thpaceEnabled: msg.thpaceEnabled || existing?.thpaceEnabled || 'true',
+          createdAt: existing?.createdAt ?? Date.now(),
+          updatedAt: Date.now()
+        },
+        msg.vars || state.store.themeConfig.values
+      );
+      const session: ArchitectSession = {
+        id,
+        name: (msg.name || 'Untitled').slice(0, 40),
+        baseHue: typeof msg.baseHue === 'number' ? msg.baseHue : 0,
+        harmony: msg.harmony || 'analogous',
+        swatchOverrides: msg.swatchOverrides || {},
+        savedColors: msg.colors.slice(0, 6),
+        bgEffect: msg.bgEffect || existing?.bgEffect || 'nebula',
+        thpaceEnabled: msg.thpaceEnabled || existing?.thpaceEnabled || 'true',
+        varOverrides: varDiff,
+        createdAt: existing?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+        isBase: existing?.isBase ?? false,
+        basePresetId: existing?.basePresetId
+      };
+      state.store.themeConfig.architectSessions[id] = session;
+      const preset = deriveCodexPreset(session);
+      const existingIdx = THEME_PRESETS.findIndex(p => p.id === preset.id);
+      if (existingIdx >= 0) { THEME_PRESETS[existingIdx] = preset; }
+      else { THEME_PRESETS.push(preset); }
+      applyPreset(preset.id);
+      // applyPreset() rebuilds state.store.themeConfig.values from the derived preset, which
+      // already includes varOverrides (see deriveCodexPreset). Re-assert the diff
+      // onto the live config so the user's Vars-panel edits survive the apply and
+      // get persisted as presetCustomizations for the active arch preset.
+      state.store.themeConfig.values = { ...state.store.themeConfig.values, ...varDiff };
+      persistThemeConfig();
+      state.store.sidebarProvider?.syncSessions();
+      state.store.CodexPanel?.webview.postMessage({ command: 'sessionSaved', sessionId: id, name: session.name, session });
+      vscode.window.showInformationMessage(`"${session.name}" applied.`);
+    }
+  }, undefined, context.subscriptions);
+}
+
+async function patchWorkbench(profilePathArg: string, silent = false): Promise<void> {
+  const workbenchDir = '/usr/lib/code-server/lib/vscode/out/vs/code/browser/workbench';
+  const workbenchHtmlPath = path.join(workbenchDir, 'workbench.html');
+  const shimSrcPath = path.join(profilePathArg, 'shim.js');
+  const shimLinkPath = path.join(workbenchDir, 'shim.js');
+  try {
+    if (!fs.existsSync(shimSrcPath)) {
+      vscode.window.showErrorMessage('shim.js not found');
+      return;
+    }
+    if (fs.existsSync(shimLinkPath) || (fs.existsSync(shimLinkPath) && fs.lstatSync(shimLinkPath).isSymbolicLink())) {
+      fs.unlinkSync(shimLinkPath);
+    }
+    fs.symlinkSync(shimSrcPath, shimLinkPath);
+
+    // Symlink vars.json for live polling
+    const varsSrcPath = path.join(profilePathArg, 'vars.json');
+    const varsLinkPath = path.join(workbenchDir, 'vars.json');
+    if (!fs.existsSync(varsSrcPath)) {
+      writeVarsJson(profilePathArg, state.store.themeConfig);
+    }
+    try {
+      if (fs.existsSync(varsLinkPath)) fs.unlinkSync(varsLinkPath);
+    } catch (_e) { /* ignore */ }
+    fs.symlinkSync(varsSrcPath, varsLinkPath);
+
+    // Symlink the backgrounds dir so the workbench origin can serve them.
+    // effects.css paints `--ftr10-bg-image: url("../backgrounds/<file>")` which
+    // resolves relative to the served css.files/ location (the workbench dir).
+    const bgDirSrc = path.join(profilePathArg, 'backgrounds');
+    const bgDirLink = path.join(workbenchDir, 'backgrounds');
+    if (fs.existsSync(bgDirSrc)) {
+      try { if (fs.existsSync(bgDirLink)) fs.unlinkSync(bgDirLink); } catch (_e) { /* ignore */ }
+      try { fs.symlinkSync(bgDirSrc, bgDirLink); } catch (_e) { /* ignore */ }
+    }
+
+    // Symlink the fonts dir so the workbench origin can serve @font-face files.
+    // font_load.css declares url('../fonts/<file>.woff2'); when that CSS is inlined
+    // into the workbench <head>, the relative path resolves against the CDN origin
+    // (no ../fonts there) and 404s -> the browser silently falls back to monospace
+    // -> "fonts not changing". The shim rewrites those url()s to __base+'fonts/<file>'
+    // (see generateShim) which reaches this symlink.
+    const fontDirSrc = path.join(profilePathArg, 'fonts');
+    const fontDirLink = path.join(workbenchDir, 'fonts');
+    if (fs.existsSync(fontDirSrc)) {
+      try { if (fs.existsSync(fontDirLink)) fs.unlinkSync(fontDirLink); } catch (_e) { /* ignore */ }
+      try { fs.symlinkSync(fontDirSrc, fontDirLink); } catch (_e) { /* ignore */ }
+    }
+
+    let html = fs.readFileSync(workbenchHtmlPath, 'utf8');
+
+    // ── Pre-paint critical CSS (eliminates the boot "three-stage flash") ──────
+    // The workbench boots in ~760ms. Before the shim + VS Code's theme resolve,
+    // the page paints: (1) html{#000} black, then (2) our shim's body theme with
+    // VS Code's DEFAULT LIGHT theme surfaces still unstyled, then (3) the final
+    // settled look. That progression is the visible flash. Injecting the FINAL
+    // themed background as a critical <style> in <head> — before workbench.js and
+    // the shim — makes the very first paint already correct, collapsing 1+2 into
+    // the final look. We bake the live --ftr10-bg so it matches what the shim
+    // applies a few ms later (no color jump).
+    let bgColor = '#0a0a0a';
+    try {
+      const vp = path.join(profilePathArg, 'vars.json');
+      const parsed = JSON.parse(fs.readFileSync(vp, 'utf8'));
+      const v = parsed && parsed.values && parsed.values['--ftr10-bg'];
+      if (typeof v === 'string' && v.trim()) bgColor = v.trim();
+    } catch (_e) { /* fall back to near-black */ }
+    // Cache-bust stamp: effects.css is inlined into shim.js at generation time, so
+    // when the user edits effects.css the stale shim.js stays cached in the browser
+    // and the OLD effect flashes before the fresh shim loads. Stamp the shim <script>
+    // src with effects.css's mtime so the browser always fetches the current shim.
+    let effectsMtime = '0';
+    try {
+      const ep = path.join(profilePathArg, 'css.files', 'effects.css');
+      effectsMtime = String(Math.floor(fs.statSync(ep).mtimeMs));
+    } catch (_e) {}
+    const PREPAINT_ID = 'ftr10-prepaint';
+    // Critical override layer: force VS Code's opaque default surfaces transparent
+    // during boot. Without this, workbench parts (editor/sidebar/panels) paint with
+    // VS Code's DEFAULT theme backgrounds for ~750ms before main.css's :root override
+    // applies — that's the "circuit + dark tint" middle stage. Baking these literal
+    // `transparent/#00000000 !important` rules makes parts transparent the instant
+    // they appear, so the circuit shows through from first paint.
+    let critOverrides = '';
+    try {
+      const mainCss = fs.readFileSync(path.join(profilePathArg, 'css.files', 'main.css'), 'utf8');
+      const m = mainCss.match(/:root\s*\{([\s\S]*?)\}/);
+      if (m) {
+        critOverrides = m[1].split('\n').map(l => l.trim()).filter(l =>
+          l.includes('!important') && (l.toLowerCase().includes('background') || l.toLowerCase().includes('transparent'))
+        ).join(' ');
+      }
+    } catch (_e) {}
+    const PREPAINT_STYLE = `<style id="${PREPAINT_ID}">html{background:#000!important}body,.monaco-workbench{background-color:${bgColor}!important}.monaco-workbench-splash,.monaco-splash,#monaco-parts-splash{background-color:${bgColor}!important}:root{${critOverrides}}.ftr10-booting .monaco-workbench{visibility:hidden!important}.ftr10-booting .monaco-workbench.ftr10-boot-in{visibility:visible!important}#ftr10-splash{position:fixed;inset:0;z-index:2147483647;background:radial-gradient(ellipse at center, ${bgColor} 0%, #000 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .5s ease;pointer-events:none;overflow:hidden;font-family:'Share Tech Mono',ui-monospace,monospace}#ftr10-splash .ftr10-splash-circuit{position:absolute;inset:0;opacity:.45;background-image:linear-gradient(rgba(120,170,255,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(120,170,255,.12) 1px,transparent 1px);background-size:26px 26px;mask-image:radial-gradient(circle at center,transparent 22%,#000 72%);-webkit-mask-image:radial-gradient(circle at center,transparent 22%,#000 72%);animation:ftr10-drift 8s linear infinite}@keyframes ftr10-drift{to{background-position:26px 26px,26px 26px}}#ftr10-splash .ftr10-splash-glow{position:absolute;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(122,162,255,.18),transparent 62%);filter:blur(12px);animation:ftr10-pulse 2.6s ease-in-out infinite}@keyframes ftr10-pulse{0%,100%{transform:scale(.9);opacity:.55}50%{transform:scale(1.08);opacity:.95}}#ftr10-splash .ftr10-splash-core{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px}#ftr10-splash .ftr10-splash-rings{position:relative;width:96px;height:96px}#ftr10-splash .ftr10-splash-ring{position:absolute;top:0;left:0;width:96px;height:96px;border:2px solid rgba(140,180,255,.16);border-top-color:rgba(150,190,255,.95);border-radius:50%;animation:ftr10-spin 1.1s linear infinite}#ftr10-splash .ftr10-splash-ring2{position:absolute;top:12px;left:12px;width:72px;height:72px;border:2px solid rgba(155,140,255,.14);border-bottom-color:rgba(77,224,208,.85);border-radius:50%;animation:ftr10-spin 1.6s linear infinite reverse}@keyframes ftr10-spin{to{transform:rotate(360deg)}}#ftr10-splash .ftr10-splash-title{font-size:34px;font-weight:700;letter-spacing:6px;background:linear-gradient(90deg,#7aa2ff,#9b8cff,#4de0d0,#7aa2ff);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ftr10-shine 3s linear infinite}#ftr10-splash .ftr10-splash-title span{margin-left:10px;opacity:.85}@keyframes ftr10-shine{to{background-position:300% 0}}#ftr10-splash .ftr10-splash-sub{font-size:11px;letter-spacing:7px;color:rgba(150,190,255,.6)}#ftr10-splash .ftr10-splash-bar{width:190px;height:2px;background:rgba(140,180,255,.14);border-radius:2px;overflow:hidden}#ftr10-splash .ftr10-splash-bar i{display:block;width:40%;height:100%;background:linear-gradient(90deg,transparent,#7aa2ff,#4de0d0,transparent);animation:ftr10-load 1.4s ease-in-out infinite}@keyframes ftr10-load{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}#ftr10-splash.ftr10-splash-hidden{opacity:0!important}</style>`;
+    // Remove any prior copy so we always write the current bg color.
+    html = html.replace(new RegExp('<style id="' + PREPAINT_ID + '">.*?</style>\\s*', 'gis'), '');
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `  ${PREPAINT_STYLE}\n</head>`);
+      // Persist immediately — the shim-tag logic below only writes conditionally,
+      // so without this the pre-paint style could be dropped when the shim tag
+      // already exists.
+      fs.writeFileSync(workbenchHtmlPath, html);
+    }
+    // Boot splash overlay: a full-screen circuit + spinner that paints on first
+    // paint (it lives in workbench.html, not the shim) and is removed by the shim
+    // once the fresh, cache-busted shim has applied. This hides the stale-effect
+    // flash and the workbench build behind one intentional screen.
+    const SPLASH_ID = 'ftr10-splash';
+    const SPLASH_HTML = `<div id="${SPLASH_ID}"><div class="ftr10-splash-circuit"></div><div class="ftr10-splash-glow"></div><div class="ftr10-splash-core"><div class="ftr10-splash-rings"><div class="ftr10-splash-ring"></div><div class="ftr10-splash-ring2"></div></div><div class="ftr10-splash-title">FTR10<span>CODEX</span></div><div class="ftr10-splash-sub">INITIALIZING</div><div class="ftr10-splash-bar"><i></i></div></div></div><!--/ftr10-splash-->`;
+    html = html.replace(new RegExp('<div id="' + SPLASH_ID + '">[\\s\\S]*?<!--/ftr10-splash-->\\s*', 'gi'), '');
+    // Legacy cleanup: the pre-marker splash (single ring) ended at the first
+    // </div>. Strip it so upgrading doesn't leave a duplicate/orphaned overlay.
+    html = html.replace(/<div id="ftr10-splash"><div class="ftr10-splash-circuit"><\/div><div class="ftr10-splash-ring"><\/div><\/div>\s*/gi, '');
+    if (html.includes('<body')) {
+      html = html.replace(/(<body[^>]*>)/, `$1\n  ${SPLASH_HTML}`);
+      fs.writeFileSync(workbenchHtmlPath, html);
+    }
+
+    // Fix (2026-07-15): correct tag is {{WORKBENCH_WEB_BASE_URL}}/.../shim.js, not ./shim.js
+    // Clean up any old/broken injections first to prevent duplicates and broken relative paths.
+    const CORRECT_SHIM_TAG = `<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js?t=${effectsMtime}"></script>`;
+    const SHIM_TAG_REGEX = /<script[^>]*shim\.js[^>]*>\s*<\/script>\s*/gi;
+    const hadOld = SHIM_TAG_REGEX.test(html);
+    if (hadOld) {
+      html = html.replace(SHIM_TAG_REGEX, '');
+    }
+    if (!html.includes('{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js')) {
+      if (html.includes('workbench.js')) {
+        html = html.replace(
+          /(<script\s+type="module"\s+src="[^"]*workbench\.js"[^>]*>)/,
+          `\n  ${CORRECT_SHIM_TAG}\n$1`
+        );
+      } else {
+        html = html.replace('</head>', `  ${CORRECT_SHIM_TAG}\n</head>`);
+      }
+      fs.writeFileSync(workbenchHtmlPath, html);
+    } else if (hadOld) {
+      // We removed old tags but correct tag already existed? Ensure file is rewritten cleaned.
+      fs.writeFileSync(workbenchHtmlPath, html);
+      // Re-inject if we accidentally removed the correct one
+      if (!html.includes('{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/shim.js')) {
+        let fresh = fs.readFileSync(workbenchHtmlPath, 'utf8');
+        if (fresh.includes('workbench.js')) {
+          fresh = fresh.replace(
+            /(<script\s+type="module"\s+src="[^"]*workbench\.js"[^>]*>)/,
+            `\n  ${CORRECT_SHIM_TAG}\n$1`
+          );
+        } else {
+          fresh = fresh.replace('</head>', `  ${CORRECT_SHIM_TAG}\n</head>`);
+        }
+        fs.writeFileSync(workbenchHtmlPath, fresh);
+      }
+    }
+    // Ensure symlink for css.files dir exists (workbench needs to serve css files)
+    const cssDirSrc = path.join(profilePathArg, 'css.files');
+    const cssDirLink = path.join(workbenchDir, 'css.files');
+    try { if (fs.existsSync(cssDirLink)) fs.unlinkSync(cssDirLink); } catch {}
+    try { if (fs.existsSync(cssDirSrc)) fs.symlinkSync(cssDirSrc, cssDirLink); } catch {}
+    if (!silent) vscode.window.showInformationMessage('Workbench patched with shim.js');
+  } catch (err: any) {
+    if (!silent) vscode.window.showErrorMessage(`Failed to patch workbench: ${err?.message || err}`);
+  }
+}
+
+/**
+ * Produce a plain, serializable deep-clone of a value safe to embed in webview
+ * HTML / postMessage. The theme config and its values are plain data (strings,
+ * arrays, nested records) with no functions or classes, so a JSON round-trip is
+ * the correct sanitizer: it strips any non-serializable fields and yields a fresh
+ * object the webview can own without shared references into the extension host.
+ */
+function sanitizeForWebview(v: any): any {
+  if (v === undefined || v === null) return v;
+  try { return JSON.parse(JSON.stringify(v)); } catch { return {}; }
+}
+
+/** Sanitize an ArchitectSession for webview consumption (plain deep-clone). */
+function sanitizeSession(s: any): any {
+  return sanitizeForWebview(s);
+}
+
+/** Sanitize the full ThemeConfig for webview consumption (plain deep-clone). */
+function sanitizeConfigForWebview(c: any): any {
+  return sanitizeForWebview(c);
+}

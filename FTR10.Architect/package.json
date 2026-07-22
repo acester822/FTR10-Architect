@@ -1,0 +1,103 @@
+{
+  "name": "architect",
+  "displayName": "FTR10 Architect",
+  "version": "0.11.26",
+  "description": "FTR10 Architect theme engine for VS Code / code-server — sidebar, main editor view, shim generator, and workbench re-injection.",
+  "categories": [
+    "Themes",
+    "Other"
+  ],
+  "keywords": [
+    "theme",
+    "ftr10",
+    "code-server",
+    "workbench",
+    "theming"
+  ],
+  "license": "NCSA",
+  "publisher": "ftr10",
+  "main": "./out/native/extension.js",
+  "icon": "media/logo.png",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "vscode:prepublish": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "themeSync.patchWorkbench",
+        "title": "FTR10 Codex: Patch workbench"
+      },
+      {
+        "command": "themeSync.applyPreset",
+        "title": "FTR10 Codex: Apply Preset"
+      }
+    ],
+    "themes": [
+      {
+        "label": "FTR10 Base",
+        "uiTheme": "vs-dark",
+        "path": "./themes/ftr10-base-color-theme.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "themeSync",
+          "title": "FTR10 Codex",
+          "icon": "./media/logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "themeSync": [
+        {
+          "id": "themeSync.sidebar",
+          "name": "Themes",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "FTR10 Architect",
+      "properties": {
+        "themeSync.profilePath": {
+          "markdownDescription": "Absolute path to the FTR10 profile folder (holds `theme.json`, `shim.js`, `vars.json`, `css.files/`). Defaults to `~/.ftr10`.",
+          "default": "",
+          "type": "string"
+        },
+        "ftr10.trace": {
+          "markdownDescription": "Enable the FTR10 runtime trace log written to `~/.ftr10/logs/ftr10-trace.log`. Set `FTR10_TRACE=0` in the environment to force it off.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:themeSync.sidebar",
+    "onCommand:themeSync.patchWorkbench"
+  ],
+  "dependencies": {
+    "chokidar": "^3.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "16",
+    "@types/vscode": "1.70.0",
+    "@typescript-eslint/eslint-plugin": "^6.5.0",
+    "@typescript-eslint/parser": "^6.5.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^8.48.0",
+    "prettier": "^1.18.2",
+    "typescript": "^5.2.2"
+  }
+}

@@ -1,0 +1,15 @@
+.vscode/**
+.vscode-test/**
+out/test/**
+src/**
+**/*.map
+.gitignore
+tsconfig.json
+.vscodeignore
+node_modules
+# build / tooling
+build.js
+gulpfile.js
+.eslintrc.js
+.eslintignore
+.prettierignore

@@ -1,69 +1,17 @@
-# === FTR10 root profile ===
-# This is the Hermes-style monorepo (config + code). Code lives in FTR10.Codex/
+# This repository is scoped to track ONLY the FTR10.Architect extension package.
+# The git root (/home/ftr/.ftr10) is also the live ~/.ftr10 runtime profile, so
+# ignore the entire tree and re-include just the package directory.
+/*
+!/FTR10.Architect/
 
-# --- Generated runtime (derived from theme.json, regenerated on activation) ---
-css.files/
+# One-off pre-merge backup kept on disk for reference; never synced.
+code-server-theme-sync-backup-*/
+
+# Live profile artifacts at repo root (this dir IS ~/.ftr10). Tracked separately
+# via the per-package .gitignore; the repo root only carries FTR10.Architect.
+theme.json
 shim.js
 vars.json
 terminal-colors.zsh
-incorrect_workbench.js
 assets/
 symbolic.links/
-
-# --- Backgrounds: only keep files starting with Default ---
-# Ignore everything in backgrounds, then re-include Default*
-backgrounds/*
-!backgrounds/Default*
-!backgrounds/.gitkeep
-
-# --- FTR10.Codex build artifacts (also covered by nested .gitignore) ---
-FTR10.Codex/node_modules/
-FTR10.Codex/out/
-FTR10.Codex/dist/
-FTR10.Codex/.vscode-test/
-FTR10.Codex/.vscode-test-web/
-FTR10.Codex/*.vsix
-FTR10.Codex/.direnv/
-FTR10.Codex/mume/
-FTR10.Codex/crossnote/out/
-FTR10.Codex/crossnote/dependencies/
-FTR10.Codex/crossnote/webview/
-FTR10.Codex/.pnpm-store/
-FTR10.Codex/.cache/
-FTR10.Codex/.tmp/
-
-# --- Logs / OS ---
-logs/
-*.log
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
-*.bak
-*.orig
-.cache/
-.tmp/
-
-# --- Theme state ---
-# theme.json is committed as the "of record" factory default (so the repo keeps a
-# baseline). To stop LOCAL edits / custom architect sessions from syncing, the real
-# mechanism is a local index flag, NOT .gitignore (gitignore does NOT apply to
-# already-tracked files):
-#     git update-index --skip-worktree theme.json
-# .gitignore is intentionally NOT listing it, because a plain `theme.json` ignore
-# line would let a future `git add -A` silently drop the committed file from the
-# repo if skip-worktree is ever cleared. Keep theme.json tracked; skip-worktree
-# handles the "don't sync my local changes" part locally.
-
-# --- Optional: ignore fonts if they are large binaries you manage elsewhere ---
-# fonts/
-
-# --- Keep docs/icons tracked ---
-!FTR10.Codex.Docs/
-!FTR10.Icons/
-!fonts/
-!config.js
-!head.html
-!parser.js
-!README.md
