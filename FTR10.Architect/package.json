@@ -15,6 +15,10 @@
     "theming"
   ],
   "license": "NCSA",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acester822/FTR10-Architect.git"
+  },
   "publisher": "ftr10",
   "main": "./out/native/extension.js",
   "icon": "media/logo.png",
