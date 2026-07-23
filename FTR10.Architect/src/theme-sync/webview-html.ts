@@ -812,35 +812,36 @@ window.__FTR10_INIT__ = ${initJson};
   }
   /* Each vars section renders as its own draggable + resizable table */
   .v-table {
-    border: 1px solid rgba(var(--ui-accent-rgb), 0.16);
-    background: rgba(0,4,14,0.4);
-    border-radius: 8px;
+    border: 1px solid rgba(var(--ui-accent-rgb),0.18);
+    background: rgba(0,8,20,0.62);
+    border-radius: 10px;
+    padding: 8px;
     overflow: auto;
     min-height: 40px;
+    box-shadow: 0 0 18px rgba(var(--ui-accent-rgb),0.08), inset 0 0 10px rgba(var(--ui-accent-rgb),0.05);
+    backdrop-filter: blur(3px);
   }
   .v-table-header {
-    position: sticky;
-    top: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(var(--ui-accent-rgb),0.9);
+    text-align: center;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    font-size: 0.7rem;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: rgba(var(--ui-accent-rgb), 0.95);
-    background: rgba(var(--ui-accent-rgb), 0.12);
-    border-bottom: 1px solid rgba(var(--ui-accent-rgb), 0.18);
-    cursor: inherit;
+    justify-content: center;
+    gap: 8px;
     user-select: none;
   }
-  .v-table-header:hover { background: rgba(var(--ui-accent-rgb), 0.18); }
   .v-count {
     margin-left: auto;
     opacity: 0.6;
     font-size: 0.66rem;
   }
-  .var-tables .v-group-fields { padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
+  .var-tables .v-group-fields { padding: 0; display: flex; flex-direction: column; gap: 0; }
 
   /* ── Edit-Layout mode: movable panels (varTables + legend wraps) ──
      The stone set (ep-wrap / center-col / clusters) never gets .draggable. */
@@ -1273,17 +1274,17 @@ window.__FTR10_INIT__ = ${initJson};
     color: rgba(var(--ui-accent-rgb), 0.85);
     margin-bottom: 6px;
   }
-  .bg-vars-block .v-field-row { border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .bg-vars-block .v-field-row { margin-bottom: 0; }
   .qp-row {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
-    gap: 5px;
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 5px;
-    background: rgba(255,255,255,0.025);
-    padding: 3px 6px;
-    margin-top: 3px;
+    gap: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    padding: 5px 6px;
+    margin-bottom: 5px;
   }
   .qp-label {
     font-size: 0.56rem;
@@ -1631,10 +1632,12 @@ window.__FTR10_INIT__ = ${initJson};
     grid-template-columns: 1fr 1fr;
     align-items: center;
     gap: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    padding: 5px 6px;
+    margin-bottom: 5px;
   }
-  .v-field-row.v-field-select:last-child { border-bottom: none; }
   .v-field-label {
     font-size: 0.65rem;
     letter-spacing: 0.8px;
@@ -1661,38 +1664,22 @@ window.__FTR10_INIT__ = ${initJson};
     grid-template-columns: 1fr 1fr;
     align-items: center;
     gap: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    padding: 5px 6px;
+    margin-bottom: 5px;
   }
-  .v-field-row.v-field-slider:last-child { border-bottom: none; }
   .v-slider-wrap {
     display: flex;
     align-items: center;
     gap: 8px;
   }
   .v-slider-wrap input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
     flex: 1;
-    height: 3px;
-    border-radius: 2px;
-    background: rgba(var(--ui-accent-rgb),0.18);
-    outline: none;
+    height: 4px;
+    accent-color: var(--ui-accent);
     cursor: pointer;
-  }
-  .v-slider-wrap input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: rgba(var(--ui-accent-rgb),0.7);
-    border: 1px solid rgba(var(--ui-accent-rgb),0.3);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .v-slider-wrap input[type="range"]::-webkit-slider-thumb:hover {
-    background: rgba(var(--ui-accent-rgb),0.9);
   }
   .v-slider-val {
     font-size: 0.62rem;
