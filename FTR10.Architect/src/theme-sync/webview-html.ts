@@ -1655,6 +1655,53 @@ window.__FTR10_INIT__ = ${initJson};
     outline: none;
     width: 100%;
   }
+  /* slider rows for numeric THPace variables */
+  .v-field-row.v-field-slider {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .v-field-row.v-field-slider:last-child { border-bottom: none; }
+  .v-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .v-slider-wrap input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(var(--ui-accent-rgb),0.18);
+    outline: none;
+    cursor: pointer;
+  }
+  .v-slider-wrap input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(var(--ui-accent-rgb),0.7);
+    border: 1px solid rgba(var(--ui-accent-rgb),0.3);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .v-slider-wrap input[type="range"]::-webkit-slider-thumb:hover {
+    background: rgba(var(--ui-accent-rgb),0.9);
+  }
+  .v-slider-val {
+    font-size: 0.62rem;
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(200,220,255,0.85);
+    min-width: 48px;
+    text-align: right;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
@@ -2679,6 +2726,35 @@ const SELECT_OPTIONS_A = {
   '--ftr10-thpace-enabled': ['true', 'false']
 };
 
+// Slider config for numeric THPace variables — min, max, step, and optional unit suffix.
+const THPACE_SLIDER_CONFIG = {
+  '--ftr10-thpace-opacity': { min: 0, max: 1, step: 0.05, unit: '' },
+  '--ftr10-thpace-zindex': { min: 0, max: 100, step: 1, unit: '' },
+  '--ftr10-thpace-triangle-size': { min: 10, max: 500, step: 5, unit: '' },
+  '--ftr10-thpace-bleed': { min: 0, max: 500, step: 5, unit: '' },
+  '--ftr10-thpace-noise': { min: 0, max: 100, step: 1, unit: '' },
+  '--ftr10-thpace-point-variation-x': { min: 1, max: 100, step: 1, unit: '' },
+  '--ftr10-thpace-point-variation-y': { min: 1, max: 100, step: 1, unit: '' },
+  '--ftr10-thpace-animation-speed': { min: 1000, max: 30000, step: 100, unit: 'ms' },
+  '--ftr10-thpace-max-fps': { min: 10, max: 60, step: 1, unit: 'fps' }
+};
+function _isThpaceSliderKey(key) { return key in THPACE_SLIDER_CONFIG; }
+
+// Resolve a CSS var reference (e.g. --ftr10-accent-1) to its computed hex value on
+// the document root, so thpace-1/2/3 color swatches show the actual color.
+function _resolveCssVarRef(value) {
+  if (!value || typeof value !== 'string') return value;
+  const v = value.trim();
+  if (v.startsWith('--')) {
+    try {
+      const resolved = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+      if (resolved && /^#[0-9a-fA-F]{6,8}$/.test(resolved)) return resolved;
+    } catch {}
+  }
+  if (v === 'transparent') return '#00000000';
+  return v;
+}
+
 // Apply the theme's font (and a few layout) vars to THIS webview's own document so
 // the Architect/Editor GUI itself follows the configured fonts. The workbench shim
 // writes these to the workbench :root, but the webview is a separate document and
@@ -2721,8 +2797,23 @@ function buildVarsFieldRow(key, value) {
     html += '</div>';
     return html;
   }
+  // slider field — for numeric THPace variables
+  const sliderCfg = THPACE_SLIDER_CONFIG[key];
+  if (sliderCfg) {
+    const val = parseFloat(value) || sliderCfg.min;
+    const display = val + (sliderCfg.unit ? ' ' + sliderCfg.unit : '');
+    let html = '<div class="v-field-row v-field-slider">';
+    html += '<div class="v-field-label" title="' + escapeHtmlA(key) + '">' + escapeHtmlA(label) + '</div>';
+    html += '<div class="v-slider-wrap">';
+    html += '<input type="range" data-vkey="' + escapeHtmlA(key) + '" min="' + sliderCfg.min + '" max="' + sliderCfg.max + '" step="' + sliderCfg.step + '" value="' + val + '">';
+    html += '<span class="v-slider-val">' + display + '</span>';
+    html += '</div></div>';
+    return html;
+  }
   // color field — match the Palette Roles legend row exactly
-  const hex = isHexA(value) ? value : '#888888';
+  // Resolve CSS var refs (e.g. --ftr10-accent-1) for thpace-1/2/3 color swatches
+  const resolvedValue = _resolveCssVarRef(value);
+  const hex = isHexA(resolvedValue) ? resolvedValue : '#888888';
   const name = getColorNameFromHex(hex);
   let html = '<div class="v-field-row v-field-color">';
   html += '<button type="button" class="v-color-dot" data-vkey="' + escapeHtmlA(key) + '" data-vrole="colorbtn" title="Set ' + escapeHtmlA(label) + '" style="background:' + escapeHtmlA(hex) + ';--lg:' + escapeHtmlA(hex) + ';"></button>';
@@ -2836,6 +2927,20 @@ function wireVarsInputs(content) {
       } else {
         varsState.values[sel.dataset.vkey] = v;
       }
+      scheduleVarsLiveUpdate();
+    });
+  });
+  // Range sliders for numeric THPace variables — update value display on input.
+  content.querySelectorAll('input[type="range"][data-vkey]').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const key = slider.dataset.vkey;
+      const val = slider.value;
+      varsState.values[key] = val;
+      // Update the sibling .v-slider-val display
+      const cfg = THPACE_SLIDER_CONFIG[key];
+      const display = val + (cfg && cfg.unit ? ' ' + cfg.unit : '');
+      const valSpan = slider.parentElement.querySelector('.v-slider-val');
+      if (valSpan) valSpan.textContent = display;
       scheduleVarsLiveUpdate();
     });
   });
