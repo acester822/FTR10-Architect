@@ -347,6 +347,8 @@ var applyVars = function(vars) {
 // Enable/disable the Thpace canvas to match --ftr10-thpace-enabled. If the Thpace
 // lib hasn't finished loading yet, retry on a short timer (it self-cancels once it
 // applies, so there's no lingering interval in the steady state).
+// Also forwards numeric/color THPace params to the live instance so slider changes
+// take effect immediately (not just on next page load).
 function __reconcileThpace(resolved) {
   var on = (resolved['--ftr10-thpace-enabled'] || 'true').trim() !== 'false';
   if (window.ftr10Thpace) {
@@ -356,12 +358,47 @@ function __reconcileThpace(resolved) {
     }
     on ? window.ftr10Thpace.enable() : window.ftr10Thpace.disable();
     window.__ftr10ThpaceRetries = 0;
+    // Forward numeric and color THPace params to the live Thpace instance
+    __applyThpaceParams(resolved);
     return;
   }
   if (window.__ftr10ThpaceRetries === undefined) window.__ftr10ThpaceRetries = 0;
   if (window.__ftr10ThpaceRetries > 100) return; // ~10s elapsed, give up
   window.__ftr10ThpaceRetries++;
   setTimeout(function() { __reconcileThpace(resolved); }, 100);
+}
+// Forward numeric/color THPace CSS vars to the live ftr10Thpace instance (opacity,
+// zindex, triangle-size, bleed, noise, point-variation-*, animation-speed, max-fps,
+// and color tokens).
+function __applyThpaceParams(resolved) {
+  if (!window.ftr10Thpace) return;
+  var partial = {};
+  var o = (resolved['--ftr10-thpace-opacity'] || '').trim();
+  if (o) window.ftr10Thpace.setOpacity(parseFloat(o));
+  var z = (resolved['--ftr10-thpace-zindex'] || '').trim();
+  if (z) window.ftr10Thpace.setZIndex(parseInt(z,10));
+  var ts = parseFloat(resolved['--ftr10-thpace-triangle-size']);
+  if (ts > 0) partial.triangleSize = ts;
+  var bl = parseFloat(resolved['--ftr10-thpace-bleed']);
+  if (bl >= 0) partial.bleed = bl;
+  var ns = parseFloat(resolved['--ftr10-thpace-noise']);
+  if (ns >= 0) partial.noise = ns;
+  var pvx = parseFloat(resolved['--ftr10-thpace-point-variation-x']);
+  if (pvx > 0) partial.pointVariationX = pvx;
+  var pvy = parseFloat(resolved['--ftr10-thpace-point-variation-y']);
+  if (pvy > 0) partial.pointVariationY = pvy;
+  var spd = parseFloat(resolved['--ftr10-thpace-animation-speed']);
+  if (spd > 0) partial.pointAnimationSpeed = spd;
+  var fps = parseInt(resolved['--ftr10-thpace-max-fps'], 10);
+  if (fps > 0) partial.maxFps = fps;
+  // Refresh color tokens when any thpace-* key changed
+  if (resolved['--ftr10-thpace-colors'] || resolved['--ftr10-thpace-1'] || resolved['--ftr10-thpace-2'] || resolved['--ftr10-thpace-3']) {
+    window.ftr10Thpace.refreshColors();
+  }
+  if (Object.keys(partial).length) {
+    __trace('thpace-params', partial);
+    window.ftr10Thpace.updateSettings(partial);
+  }
 }
 __stage('applyVars-default-begin');
 applyVars(__defaultVars);

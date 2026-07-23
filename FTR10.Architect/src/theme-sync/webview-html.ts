@@ -2750,6 +2750,12 @@ function _resolveCssVarRef(value) {
       const resolved = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
       if (resolved && /^#[0-9a-fA-F]{6,8}$/.test(resolved)) return resolved;
     } catch {}
+    // Fallback: look up from varsState.values (the live config values) since the
+    // webview root may not have non-font CSS vars applied to it.
+    if (varsState && varsState.values && varsState.values[v] !== undefined) {
+      const fallback = String(varsState.values[v]).trim();
+      if (/^#[0-9a-fA-F]{6,8}$/.test(fallback)) return fallback;
+    }
   }
   if (v === 'transparent') return '#00000000';
   return v;
@@ -3642,6 +3648,12 @@ function openOverrideModal(arg, opts) {
   overrideOriginal = isVar
     ? (window._varsState.values[arg] || '#888888')
     : (window._codexPalette || [])[arg] || '#888888';
+  // Resolve CSS var references (e.g. --ftr10-accent-1) to actual hex values so
+  // the picker opens with the correct color instead of showing an invalid value.
+  if (overrideOriginal && overrideOriginal.startsWith && overrideOriginal.startsWith('--')) {
+    const resolved = _resolveCssVarRef(overrideOriginal);
+    if (resolved && resolved !== overrideOriginal) overrideOriginal = resolved;
+  }
   // Parse any existing alpha (8-char hex) so re-opening keeps the setting.
   pickAlpha = overrideOriginal.length >= 9 ? Math.round(parseInt(overrideOriginal.slice(7,9), 16) / 255 * 100) : 100;
   const alphaEl = document.getElementById('overrideAlpha');
