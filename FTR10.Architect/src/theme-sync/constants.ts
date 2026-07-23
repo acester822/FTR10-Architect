@@ -32,6 +32,16 @@ export const SIMPLE_GROUPS: { label: string; keys: string[] }[] = [
       '--ftr10-token-punctuation', '--ftr10-token-variable', '--ftr10-token-property',
       '--ftr10-token-operator', '--ftr10-token-tag', '--ftr10-token-selector'
     ]
+  },
+  {
+    label: 'Thpace',
+    keys: [
+      '--ftr10-thpace-enabled', '--ftr10-thpace-opacity', '--ftr10-thpace-zindex',
+      '--ftr10-thpace-triangle-size', '--ftr10-thpace-bleed', '--ftr10-thpace-noise',
+      '--ftr10-thpace-point-variation-x', '--ftr10-thpace-point-variation-y',
+      '--ftr10-thpace-animation-speed', '--ftr10-thpace-max-fps',
+      '--ftr10-thpace-colors', '--ftr10-thpace-1', '--ftr10-thpace-2', '--ftr10-thpace-3'
+    ]
   }
 ];
 

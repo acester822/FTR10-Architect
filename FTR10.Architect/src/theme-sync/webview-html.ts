@@ -2675,7 +2675,8 @@ const SELECT_OPTIONS_A = {
       '--ftr10-bg-effect': ['none', 'kaleidoscope', 'aurora', 'nebula', 'crt', 'circuit', 'meshflow', 'playstation'],
   '--ftr10-body-font': FONT_OPTIONS_A, '--ftr10-heading-font': FONT_OPTIONS_A, '--ftr10-code-font': FONT_OPTIONS_A,
   '--ftr10-font-activitybar': FONT_OPTIONS_A, '--ftr10-font-sidebar': FONT_OPTIONS_A, '--ftr10-font-panel-bottom': FONT_OPTIONS_A,
-  '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A
+  '--ftr10-font-panel-top': FONT_OPTIONS_A, '--ftr10-font-auxiliarybar': FONT_OPTIONS_A,
+  '--ftr10-thpace-enabled': ['true', 'false']
 };
 
 // Apply the theme's font (and a few layout) vars to THIS webview's own document so
